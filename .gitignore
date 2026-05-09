@@ -167,6 +167,10 @@ venv.bak/
 # mkdocs documentation
 /site
 
+#claude
+.claude
+setting.json
+
 # mypy
 .mypy_cache/
 .dmypy.json

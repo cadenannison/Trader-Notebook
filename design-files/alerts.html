@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TradrNotebook - Alerts</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="site-body" data-logo-style="shared-stem">
+
+<header class="site-header">
+  <div class="site-shell">
+    <nav class="topbar">
+      <a class="topbar-brand" href="index.html" aria-label="TradrNotebook dashboard">
+        <span class="monogram logo-mark" aria-hidden="true"><span class="logo-t">t</span><span class="logo-n">N</span></span>
+        <span class="topbar-wordmark">TradrNotebook</span>
+      </a>
+      <div class="topbar-nav">
+        <a href="index.html" class="topbar-link">Dashboard</a>
+        <a href="watchlist.html" class="topbar-link">Watchlist</a>
+        <a href="alerts.html" class="topbar-link active">Alerts</a>
+        <a href="portfolio.html" class="topbar-link">Portfolio</a>
+        <a href="settings.html" class="topbar-link">Settings</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main class="site-main">
+  <div class="site-shell">
+    <section class="hero-panel">
+      <div>
+        <p class="eyebrow">Execution feed</p>
+        <h1>See what fired, when it fired, and what deserves attention now.</h1>
+        <p class="hero-copy">Alerts should read like a trader's decision queue. This screen keeps the feed quiet, legible, and useful the moment a level gets touched.</p>
+      </div>
+      <div class="hero-metrics">
+        <div class="hero-metric">
+          <span class="hero-metric-label">Total alerts</span>
+          <strong id="alert-count">0</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="content-panel">
+      <div class="content-panel-head">
+        <div>
+          <h2>Triggered alerts</h2>
+          <p>Recent activity from your tracked levels.</p>
+        </div>
+      </div>
+      <div class="alerts-list" id="alerts-container"></div>
+    </section>
+  </div>
+</main>
+
+<script src="script.js"></script>
+<script>
+  const container = document.getElementById("alerts-container");
+  const allAlerts = [...alerts].reverse();
+  document.getElementById("alert-count").textContent = allAlerts.length;
+
+  if (!allAlerts.length) {
+    container.innerHTML = `
+      <div class="empty-state-card">
+        <span class="empty-state-mark brand-badge logo-mark" aria-hidden="true"><span class="logo-t">t</span><span class="logo-n">N</span></span>
+        <h3>No alerts have triggered yet</h3>
+        <p>Once a watched level is hit, it will show up here with the ticker, message, and timestamp.</p>
+      </div>
+    `;
+  } else {
+    container.innerHTML = allAlerts.map(a => `
+      <article class="feed-row">
+        <div class="feed-icon brand-badge logo-mark" aria-hidden="true"><span class="logo-t">t</span><span class="logo-n">N</span></div>
+        <div class="feed-body">
+          <div class="feed-title">${a.ticker}</div>
+          <div class="feed-copy">${a.message}</div>
+        </div>
+        <div class="feed-meta">${a.time}</div>
+      </article>
+    `).join("");
+  }
+</script>
+
+</body>
+</html>

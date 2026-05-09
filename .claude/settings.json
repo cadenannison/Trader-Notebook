@@ -28,7 +28,8 @@
       "Bash(echo \"FastAPI PID: $!\")",
       "Bash(echo \"Next.js PID: $!\")",
       "Bash(curl -s -o /dev/null -w \"Next.js: %{http_code}\\\\n\" http://localhost:3000)",
-      "Bash(curl -s -o /dev/null -w \"FastAPI: %{http_code}\\\\n\" http://localhost:8000/api/health)"
+      "Bash(curl -s -o /dev/null -w \"FastAPI: %{http_code}\\\\n\" http://localhost:8000/api/health)",
+      "Bash(xxd /Users/cadenannison/projects/Trader-Notebook/Trader-Notebook/design-files/javascript.js)"
     ],
     "additionalDirectories": [
       "/Users/cadenannison/projects/Trader-Notebook/Trader-Notebook/client/src/app/ticker"

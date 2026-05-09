@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TradrNotebook</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body data-logo-style="shared-stem">
+<div class="app">
+
+  <!-- ═══ SIDEBAR ══════════════════════════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-brand" onclick="startNewChat()" role="button" title="New chat">
+      <div class="brand-mark logo-mark" aria-hidden="true"><span class="logo-t">t</span><span class="logo-n">N</span></div>
+      <span class="brand-name">tradrNotebook</span>
+    </div>
+
+    <button class="nav-btn active" data-view="chat">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span>Chat</span>
+    </button>
+
+    <button class="nav-btn" data-view="notebook">
+      <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      <span>Notebook</span>
+    </button>
+
+    <button class="nav-btn" data-view="alerts">
+      <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span>Alerts</span>
+    </button>
+
+    <button class="nav-btn" data-view="news">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="17" x2="12" y2="17"/></svg>
+      <span>News</span>
+    </button>
+
+    <button class="nav-btn" data-view="stats">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span>Stats</span>
+    </button>
+
+    <div class="sidebar-spacer"></div>
+
+    <div class="sidebar-bottom">
+      <button class="nav-btn" data-view="settings">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN ══════════════════════════════════════════ -->
+  <div class="main">
+
+    <!-- ─── CHAT VIEW ──────────────────────────────── -->
+    <div class="view active" id="view-chat">
+
+      <!-- Messages (flex: 0 → flex: 1 once has-messages is added) -->
+      <div class="chat-scroll" id="chat-scroll">
+        <div class="chat-inner" id="chat-inner"></div>
+      </div>
+
+      <!-- Top spacer: splits free space above/below the landing block -->
+      <div class="chat-space-top" id="chat-space-top"></div>
+
+      <!-- Landing greeting (hidden once messages appear) -->
+      <div class="chat-landing" id="chat-landing">
+<h2 class="landing-greeting" id="landing-greeting">tradrNotebook</h2>
+        <p class="landing-sub" id="landing-sub">Track setups, log trades, and keep every decision in one place.</p>
+      </div>
+
+      <!-- Input (always present; border-top added by .has-messages) -->
+      <div class="chat-input-area" id="chat-input-area">
+        <div class="input-wrap">
+          <div class="input-box" id="input-box">
+            <textarea class="chat-ta" id="chat-ta" rows="1"
+              placeholder="Set an alert, log a trade, or ask anything…"></textarea>
+            <button class="mic-btn" id="mic-btn" onclick="toggleListening()" title="Voice input">
+              <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </button>
+            <button class="send-btn" id="send-btn">
+              <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Suggestion chips (hidden once messages appear) -->
+      <div class="hint-chips-area" id="hint-chips-area">
+        <div class="hint-chips">
+          <div class="hint-chip" onclick="fillInput('Which of my alerts are closest to triggering?')">Which alerts are closest to triggering?</div>
+          <div class="hint-chip" onclick="fillInput('Alert me when NVDA has a 5% pullback')">Alert me when NVDA has a 5% pullback</div>
+          <div class="hint-chip" onclick="fillInput('What are my active alerts?')">What are my active alerts?</div>
+          <div class="hint-chip" onclick="fillInput('Show my stats')">Show my stats</div>
+        </div>
+      </div>
+
+      <!-- Bottom spacer: mirrors top spacer to keep landing centered -->
+      <div class="chat-space-bot" id="chat-space-bot"></div>
+
+    </div>
+
+    <!-- ─── NOTEBOOK VIEW ─────────────────────────── -->
+    <div class="view" id="view-notebook">
+      <div class="nb-inner">
+        <div class="page-header">
+          <div>
+            <h2>Notebook</h2>
+            <p id="nb-subtitle">Your alerts, notes, and trade history.</p>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-row" id="stats-row">
+          <div class="stat-card nb-filter-card" id="nb-filter-active" onclick="setNbFilter('active')">
+            <div class="stat-label">Active Alerts</div>
+            <div class="stat-value" id="stat-alerts">0</div>
+            <div class="stat-sub">watching</div>
+          </div>
+          <div class="stat-card nb-filter-card" id="nb-filter-triggered" onclick="setNbFilter('triggered')">
+            <div class="stat-label">Triggered</div>
+            <div class="stat-value" id="stat-triggered">0</div>
+            <div class="stat-sub">ready to act</div>
+          </div>
+          <div class="stat-card nb-filter-card" id="nb-filter-trades" onclick="setNbFilter('trades')">
+            <div class="stat-label">Total Trades</div>
+            <div class="stat-value" id="stat-trades">0</div>
+            <div class="stat-sub">logged</div>
+          </div>
+          <div class="stat-card nb-filter-card" id="nb-filter-open" onclick="setNbFilter('open')">
+            <div class="stat-label">Open Positions</div>
+            <div class="stat-value" id="stat-open">0</div>
+            <div class="stat-sub">not yet closed</div>
+          </div>
+        </div>
+
+        <!-- Active Alerts -->
+        <div class="nb-section" id="section-active">
+          <div class="nb-section-title">Active Alerts</div>
+          <div id="active-alerts-list"></div>
+        </div>
+
+        <!-- Triggered Alerts -->
+        <div class="nb-section" id="section-triggered" style="display:none">
+          <div class="nb-section-title">Triggered — Ready to Act</div>
+          <div id="triggered-alerts-list"></div>
+        </div>
+
+        <!-- Trade History -->
+        <div class="nb-section" id="section-trades" style="display:none">
+          <div class="nb-section-title" id="section-trades-title">Trade History</div>
+          <div id="trade-history-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── ALERTS VIEW ─────────────────────────────── -->
+    <div class="view" id="view-alerts">
+      <div class="alerts-inner">
+
+        <div class="page-header">
+          <div>
+            <h2>Alerts</h2>
+            <p id="alerts-subtitle">Your active price alerts and entry thesis</p>
+          </div>
+          <button class="btn btn-primary" onclick="checkPrices()">
+            <svg viewBox="0 0 24 24" class="btn-icon"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Check Prices
+          </button>
+        </div>
+
+        <div class="alerts-toolbar" id="alerts-toolbar" style="display:none">
+          <input class="alerts-search" id="alerts-search" type="text" placeholder="Search ticker…" oninput="filterAlerts(this.value)">
+          <div class="alerts-sort-btns">
+            <button class="al-sort-btn active" id="alsort-alpha" onclick="setAlertsSort('alpha')">A–Z</button>
+            <button class="al-sort-btn" id="alsort-signal" onclick="setAlertsSort('signal')">By Signal</button>
+            <button class="al-sort-btn" id="alsort-count" onclick="setAlertsSort('count')">By Levels</button>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div class="al-empty-state" id="alerts-empty" style="display:none">
+          <div class="news-setup-icon">
+            <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          </div>
+          <h3>No active alerts</h3>
+          <p>Head to <strong>Chat</strong> and set a price alert — e.g. "Alert me when PLTR drops below $170" — to populate this page.</p>
+        </div>
+
+        <!-- No Finnhub key notice (soft, non-blocking) -->
+        <div class="al-key-notice" id="alerts-no-key" style="display:none">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Add a <strong>Finnhub API key</strong> in Settings to fetch live prices and unlock smart analysis.
+        </div>
+
+        <!-- Price check loading -->
+        <div id="alerts-loading" style="display:none">
+          <div class="skeleton-card"><div class="sk-line w40"></div><div class="sk-line w100 tall"></div><div class="sk-line w70"></div></div>
+          <div class="skeleton-card"><div class="sk-line w30"></div><div class="sk-line w100 tall"></div><div class="sk-line w60"></div></div>
+        </div>
+
+        <!-- Ticker groups rendered here -->
+        <div id="alerts-feed"></div>
+
+      </div>
+    </div>
+
+    <!-- ─── NEWS VIEW ──────────────────────────────── -->
+    <div class="view" id="view-news">
+      <div class="news-inner">
+
+        <div class="news-header">
+          <div>
+            <h2>Market News</h2>
+            <p class="news-subtitle" id="news-subtitle">Stories curated for your watchlist</p>
+          </div>
+          <button class="btn btn-ghost news-refresh-btn" id="news-refresh-btn" onclick="loadNews(true)">
+            <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Refresh
+          </button>
+        </div>
+
+        <!-- Setup: no API key -->
+        <div class="news-setup-state" id="news-setup">
+          <div class="news-setup-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="17" x2="12" y2="17"/></svg>
+          </div>
+          <h3>Connect Your News Feed</h3>
+          <p>TradrNotebook pulls real-time financial news from <strong>Finnhub</strong>, which aggregates hundreds of sources across the web. Enter your free API key to activate.</p>
+          <a class="setup-link" href="https://finnhub.io/register" target="_blank" rel="noopener">Get a free Finnhub API key →</a>
+          <div class="setup-input-row">
+            <input class="modal-input" type="text" id="news-key-input" placeholder="Paste your API key here…">
+            <button class="btn btn-primary" onclick="connectNewsKey()">Connect</button>
+          </div>
+        </div>
+
+        <!-- No alerts state -->
+        <div class="news-empty-state" id="news-no-alerts" style="display:none">
+          <div class="news-setup-icon">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+          <h3>No tickers to track</h3>
+          <p>Head to <strong>Chat</strong> and set a price alert — e.g. "Alert me when NVDA drops below $900" — to start seeing curated news.</p>
+        </div>
+
+        <!-- Loading skeletons -->
+        <div id="news-loading" style="display:none">
+          <div class="news-filter-row skeleton-filters">
+            <div class="skeleton-pill"></div>
+            <div class="skeleton-pill"></div>
+            <div class="skeleton-pill"></div>
+          </div>
+          <div class="skeleton-card"><div class="sk-line w60"></div><div class="sk-line w100 tall"></div><div class="sk-line w80"></div><div class="sk-line w40"></div></div>
+          <div class="skeleton-card"><div class="sk-line w40"></div><div class="sk-line w100 tall"></div><div class="sk-line w70"></div><div class="sk-line w50"></div></div>
+          <div class="skeleton-card"><div class="sk-line w55"></div><div class="sk-line w100 tall"></div><div class="sk-line w90"></div><div class="sk-line w35"></div></div>
+        </div>
+
+        <!-- Error state -->
+        <div class="news-error-state" id="news-error" style="display:none">
+          <p id="news-error-msg">Something went wrong.</p>
+          <button class="btn btn-ghost" onclick="loadNews(true)">Try again</button>
+        </div>
+
+        <!-- AI Market Briefing -->
+        <div id="news-ai-summary" style="display:none"></div>
+
+        <!-- Filter tabs + feed (shown when loaded) -->
+        <div class="news-filter-row" id="news-filter-row" style="display:none"></div>
+        <div id="news-feed"></div>
+
+      </div>
+    </div>
+
+    <!-- ─── STATS VIEW ──────────────────────────────── -->
+    <div class="view" id="view-stats">
+      <div class="stats-page-inner">
+
+        <div class="page-header">
+          <div>
+            <h2>Statistics</h2>
+            <p id="stats-subtitle">AI-powered analysis of your trading patterns</p>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div id="stats-empty" class="stats-empty-state" style="display:none">
+          <div class="news-setup-icon">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <h3>No completed trades yet</h3>
+          <p>Set an alert in <strong>Chat</strong>, wait for it to trigger, then log a trade with an exit price. Once you have a few trades, we'll surface patterns in your trading behavior.</p>
+        </div>
+
+        <!-- Summary cards -->
+        <div class="stats-summary-row" id="stats-summary-row" style="display:none">
+          <div class="stat-card">
+            <div class="stat-label">Completed Trades</div>
+            <div class="stat-value" id="ss-trades">0</div>
+            <div class="stat-sub">logged with exit</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Win Rate</div>
+            <div class="stat-value" id="ss-winrate">—</div>
+            <div class="stat-sub" id="ss-winrate-sub">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Avg Return</div>
+            <div class="stat-value" id="ss-avg">—</div>
+            <div class="stat-sub">per trade</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Best Trade</div>
+            <div class="stat-value" id="ss-best">—</div>
+            <div class="stat-sub" id="ss-best-sub">—</div>
+          </div>
+        </div>
+
+        <!-- Trade Returns Chart -->
+        <div class="nb-section" id="stats-pnl-section" style="display:none">
+          <div class="nb-section-title">Trade Returns</div>
+          <div class="nb-chart-wrap">
+            <canvas id="trades-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Pattern Intelligence -->
+        <div class="nb-section" id="stats-patterns-section" style="display:none">
+          <div class="nb-section-title">Pattern Intelligence</div>
+          <div id="stats-patterns"></div>
+        </div>
+
+        <!-- Recommendations -->
+        <div class="nb-section" id="stats-recs-section" style="display:none">
+          <div class="nb-section-title">Recommendations</div>
+          <div id="stats-recs"></div>
+        </div>
+
+        <!-- Recent trades table -->
+        <div class="nb-section" id="stats-recent-section" style="display:none">
+          <div class="nb-section-title">Recent Performance</div>
+          <div id="stats-recent"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ─── SETTINGS VIEW ─────────────────────────── -->
+    <div class="view" id="view-settings">
+      <div class="settings-inner">
+        <h2>Settings</h2>
+
+        <div class="settings-group">
+          <div class="sg-title">Profile</div>
+          <div class="settings-row">
+            <div>
+              <div class="sr-label">Your Name</div>
+              <div class="sr-desc" id="profile-name-val">Not set</div>
+            </div>
+            <button class="btn btn-ghost" onclick="resetName()">Reset</button>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="sg-title">Alerts</div>
+          <div class="settings-row">
+            <div>
+              <div class="sr-label">Live Price Checks</div>
+              <div class="sr-desc">Auto-check prices via Finnhub every 5 minutes</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="toggle-live" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="sr-label">Alert Notifications</div>
+              <div class="sr-desc">In-chat notification when a level is hit</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="toggle-notify" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="sg-title">AI Model</div>
+          <div class="settings-row">
+            <div>
+              <div class="sr-label">Google AI Key</div>
+              <div class="sr-desc" id="settings-gemini-desc">Free at aistudio.google.com — powers the chat assistant</div>
+            </div>
+            <div class="settings-control">
+              <input type="password" class="settings-key-input" id="settings-gemini-key" placeholder="Paste key…">
+              <button class="btn btn-ghost" onclick="saveGeminiKey()">Save</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="sg-title">News Feed</div>
+          <div class="settings-row">
+            <div>
+              <div class="sr-label">Finnhub API Key</div>
+              <div class="sr-desc" id="settings-key-desc">Free at finnhub.io — powers real-time stock news</div>
+            </div>
+            <div class="settings-control">
+              <input type="password" class="settings-key-input" id="settings-api-key" placeholder="Paste key…">
+              <button class="btn btn-ghost" onclick="saveSettingsApiKey()">Save</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="sg-title">Data</div>
+          <div class="settings-row">
+            <div>
+              <div class="sr-label">Clear All Alerts</div>
+              <div class="sr-desc">Remove all saved alerts and trade history</div>
+            </div>
+            <button class="btn btn-danger" onclick="clearAlerts()">Clear</button>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="sr-label">Reset Everything</div>
+              <div class="sr-desc">Wipe all data including your name</div>
+            </div>
+            <button class="btn btn-danger" onclick="resetAll()">Reset</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end .main -->
+</div><!-- end .app -->
+
+<!-- ═══ LOG TRADE MODAL ═══════════════════════════════ -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h3 id="modal-title">Log Trade</h3>
+    <div class="modal-field">
+      <div class="modal-label">Entry Price</div>
+      <input class="modal-input" id="modal-entry" type="number" step="0.01" placeholder="e.g. 128.50">
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Exit Price <span class="modal-optional">(optional — fill in later)</span></div>
+      <input class="modal-input" id="modal-exit" type="number" step="0.01" placeholder="e.g. 145.00">
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Trade Note</div>
+      <input class="modal-input" id="modal-note" type="text" placeholder="What made you pull the trigger?">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTrade()">Save Trade</button>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
+
+
