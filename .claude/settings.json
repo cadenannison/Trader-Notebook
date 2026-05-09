@@ -29,7 +29,10 @@
       "Bash(echo \"Next.js PID: $!\")",
       "Bash(curl -s -o /dev/null -w \"Next.js: %{http_code}\\\\n\" http://localhost:3000)",
       "Bash(curl -s -o /dev/null -w \"FastAPI: %{http_code}\\\\n\" http://localhost:8000/api/health)",
-      "Bash(xxd /Users/cadenannison/projects/Trader-Notebook/Trader-Notebook/design-files/javascript.js)"
+      "Bash(xxd /Users/cadenannison/projects/Trader-Notebook/Trader-Notebook/design-files/javascript.js)",
+      "Bash(.venv/bin/python -c \"from jose import jwt; from supabase import create_client; print\\('OK'\\)\")",
+      "Bash(PYTHONPATH=. python -c \"from app.main import app; print\\('server ok'\\)\")",
+      "Bash(PYTHONPATH=. ../.venv/bin/python -c \"from app.main import app; print\\('server ok'\\)\")"
     ],
     "additionalDirectories": [
       "/Users/cadenannison/projects/Trader-Notebook/Trader-Notebook/client/src/app/ticker"

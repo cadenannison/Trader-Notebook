@@ -2,25 +2,18 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { MOCK_PRICES } from "@/mocks/prices";
+import api from "@/lib/api";
 import type { StockData } from "@shared/types";
 
 export function useStockPrice(ticker: string) {
+  const sym = ticker.toUpperCase();
   return useQuery({
-    queryKey: ["price", ticker.toUpperCase()],
+    queryKey: ["price", sym],
     queryFn: async (): Promise<StockData> => {
-      // TODO: replace with live call:
-      // const res = await axios.get(`${API}/api/stock/price`, { params: { ticker } });
-      // return res.data;
-      return (
-        MOCK_PRICES[ticker.toUpperCase()] ?? {
-          ticker: ticker.toUpperCase(),
-          price: 100.0,
-          timestamp: new Date().toISOString(),
-          change_pct: 0.0,
-        }
-      );
+      const res = await api.get("/api/stock/price", { params: { ticker: sym } });
+      return res.data;
     },
     refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 }

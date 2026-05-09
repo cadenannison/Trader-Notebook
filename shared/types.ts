@@ -23,6 +23,28 @@ export interface PriceTrigger {
   last_triggered_at: string | null;
 }
 
+export interface Trade {
+  id: string;
+  alert_id?: string;
+  ticker: string;
+  entry_price: number;
+  exit_price?: number;
+  return_pct?: number;
+  note: string;
+  logged_at: string;
+  status: "open" | "closed";
+}
+
+export interface NewsArticle {
+  ticker: string;
+  headline: string;
+  summary: string;
+  url: string;
+  source: string;
+  published_at: string;
+  sentiment: "bullish" | "bearish" | "neutral";
+}
+
 export interface InsightEmail {
   trigger_id: string;
   ticker: string;

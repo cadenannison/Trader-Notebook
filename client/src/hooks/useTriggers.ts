@@ -2,25 +2,22 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { useAppStore } from "@/store/appStore";
+import api from "@/lib/api";
 import type { PriceTrigger } from "@shared/types";
 
 export function useTriggers(ticker?: string) {
-  const triggers = useAppStore((s) => s.triggers);
-
   return useQuery({
     queryKey: ["triggers", ticker ?? "all"],
     queryFn: async (): Promise<PriceTrigger[]> => {
-      // TODO: replace with live call
-      return ticker ? triggers.filter((t) => t.ticker === ticker) : triggers;
+      const params = ticker ? { ticker } : {};
+      const res = await api.get("/api/triggers", { params });
+      return res.data;
     },
   });
 }
 
 export function useCreateTrigger() {
   const queryClient = useQueryClient();
-  const addTrigger = useAppStore((s) => s.addTrigger);
-
   return useMutation({
     mutationFn: async (data: {
       ticker: string;
@@ -29,17 +26,10 @@ export function useCreateTrigger() {
       auto_disarm: boolean;
       cooldown_hours: number;
     }): Promise<PriceTrigger> => {
-      // TODO: replace with live call
-      return {
-        id: `trigger-${Date.now()}`,
-        ...data,
-        ticker: data.ticker.toUpperCase(),
-        is_active: true,
-        last_triggered_at: null,
-      };
+      const res = await api.post("/api/triggers", data);
+      return res.data;
     },
-    onSuccess: (trigger) => {
-      addTrigger(trigger);
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["triggers"] });
     },
   });
@@ -47,12 +37,12 @@ export function useCreateTrigger() {
 
 export function useRearmTrigger() {
   const queryClient = useQueryClient();
-  const rearmTrigger = useAppStore((s) => s.rearmTrigger);
-
   return useMutation({
-    mutationFn: async (triggerId: string) => triggerId,
-    onSuccess: (triggerId) => {
-      rearmTrigger(triggerId);
+    mutationFn: async (triggerId: string): Promise<PriceTrigger> => {
+      const res = await api.put(`/api/triggers/${triggerId}/rearm`);
+      return res.data;
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["triggers"] });
     },
   });
@@ -60,12 +50,11 @@ export function useRearmTrigger() {
 
 export function useDeleteTrigger() {
   const queryClient = useQueryClient();
-  const deleteTrigger = useAppStore((s) => s.deleteTrigger);
-
   return useMutation({
-    mutationFn: async (triggerId: string) => triggerId,
-    onSuccess: (triggerId) => {
-      deleteTrigger(triggerId);
+    mutationFn: async (triggerId: string): Promise<void> => {
+      await api.delete(`/api/triggers/${triggerId}`);
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["triggers"] });
     },
   });

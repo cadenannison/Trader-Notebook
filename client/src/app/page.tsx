@@ -3,12 +3,27 @@
 import { useEffect, useRef, useState } from "react";
 
 import { clsx } from "clsx";
-import { Mic, MicOff, Send } from "lucide-react";
+import { Check, Mic, MicOff, Send } from "lucide-react";
+import { useRouter } from "next/navigation";
+
+import api from "@/lib/api";
+import { useCreateTrigger } from "@/hooks/useTriggers";
+
+interface ChatAction {
+  type: "add_alert" | "show_view";
+  ticker?: string;
+  condition?: string;
+  price?: number;
+  note?: string;
+  view?: string;
+}
 
 interface ChatMessage {
   id: string;
   role: "user" | "ai";
   text: string;
+  action?: ChatAction | null;
+  actionCreated?: boolean;
 }
 
 const HINTS = [
@@ -18,23 +33,17 @@ const HINTS = [
   "Show me my active alerts",
 ];
 
-const MOCK_RESPONSES: Record<string, string> = {
-  default:
-    "To create price alerts, add your Gemini API key in Settings. Once connected, I can interpret natural language and set alerts for you automatically.",
-  alerts: "You have 2 active alerts: NVDA above $900 and VGT above $450. Head to Alerts to see full details.",
-  notebook: "Your notebook has 4 notes across NVDA, VGT, and AAPL. Head to Notebook to review them.",
+const VIEW_PATHS: Record<string, string> = {
+  alerts: "/alerts",
+  notebook: "/notebook",
+  news: "/news",
+  stats: "/stats",
 };
 
-function getMockResponse(input: string): string {
-  const lower = input.toLowerCase();
-  if (lower.includes("alert") || lower.includes("notify") || lower.includes("watch"))
-    return MOCK_RESPONSES.alerts;
-  if (lower.includes("note") || lower.includes("notebook") || lower.includes("journal"))
-    return MOCK_RESPONSES.notebook;
-  return MOCK_RESPONSES.default;
-}
-
 export default function ChatPage() {
+  const router = useRouter();
+  const { mutateAsync: createTrigger } = useCreateTrigger();
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -66,15 +75,65 @@ export default function ChatPage() {
     if (textareaRef.current) textareaRef.current.style.height = "auto";
     setIsTyping(true);
 
-    await new Promise((r) => setTimeout(r, 900 + Math.random() * 600));
+    const history = messages.map((m) => ({
+      role: m.role === "ai" ? "model" : "user",
+      text: m.text,
+    }));
 
-    const aiMsg: ChatMessage = {
-      id: (Date.now() + 1).toString(),
-      role: "ai",
-      text: getMockResponse(text),
-    };
-    setMessages((prev) => [...prev, aiMsg]);
-    setIsTyping(false);
+    const aiId = (Date.now() + 1).toString();
+
+    try {
+      const { data } = await api.post<{ message: string; action: ChatAction | null }>("/api/chat", {
+        message: text,
+        history,
+      });
+
+      const aiMsg: ChatMessage = {
+        id: aiId,
+        role: "ai",
+        text: data.message,
+        action: data.action,
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+
+      if (data.action?.type === "show_view" && data.action.view) {
+        const path = VIEW_PATHS[data.action.view];
+        if (path) setTimeout(() => router.push(path), 900);
+      }
+
+      if (
+        data.action?.type === "add_alert" &&
+        data.action.ticker &&
+        data.action.price &&
+        data.action.condition
+      ) {
+        try {
+          await createTrigger({
+            ticker: data.action.ticker,
+            target_price: data.action.price,
+            condition: data.action.condition as "above" | "below",
+            auto_disarm: true,
+            cooldown_hours: 4,
+          });
+          setMessages((prev) =>
+            prev.map((m) => (m.id === aiId ? { ...m, actionCreated: true } : m))
+          );
+        } catch {
+          // trigger creation failed — user can add manually via Alerts
+        }
+      }
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: aiId,
+          role: "ai",
+          text: "Something went wrong — make sure the server is running.",
+        },
+      ]);
+    } finally {
+      setIsTyping(false);
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -91,7 +150,6 @@ export default function ChatPage() {
 
   function toggleMic() {
     setIsListening((v) => !v);
-    // TODO: wire Web Speech API
   }
 
   return (
@@ -99,7 +157,6 @@ export default function ChatPage() {
       {/* Scroll area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
         {!hasMessages ? (
-          /* Landing */
           <div className="flex flex-col items-center justify-center h-full gap-6 pb-24">
             <div className="text-center space-y-2">
               <div className="w-12 h-12 rounded-xl border-[1.5px] border-brand flex items-center justify-center mx-auto mb-4">
@@ -111,7 +168,6 @@ export default function ChatPage() {
               </p>
             </div>
 
-            {/* Hint chips */}
             <div className="flex flex-wrap justify-center gap-2 max-w-lg">
               {HINTS.map((hint) => (
                 <button
@@ -125,27 +181,40 @@ export default function ChatPage() {
             </div>
           </div>
         ) : (
-          /* Messages */
           <div className="max-w-2xl mx-auto space-y-4 pb-4">
             {messages.map((msg) => (
               <div
                 key={msg.id}
                 className={clsx("flex animate-fade-up", msg.role === "user" ? "justify-end" : "justify-start")}
               >
-                <div
-                  className={clsx(
-                    "max-w-[80%] px-4 py-2.5 text-sm leading-relaxed",
-                    msg.role === "user"
-                      ? "bg-brand text-white rounded-2xl rounded-br-sm"
-                      : "bg-white border border-brand-subtle text-slate-800 rounded-2xl rounded-bl-sm shadow-sm"
-                  )}
-                >
-                  {msg.text}
-                </div>
+                {msg.role === "user" ? (
+                  <div className="max-w-[80%] px-4 py-2.5 text-sm leading-relaxed bg-brand text-white rounded-2xl rounded-br-sm">
+                    {msg.text}
+                  </div>
+                ) : (
+                  <div className="max-w-[80%] bg-white border border-brand-subtle rounded-2xl rounded-bl-sm shadow-sm overflow-hidden">
+                    <p className="px-4 py-2.5 text-sm leading-relaxed text-slate-800">{msg.text}</p>
+                    {msg.action?.type === "add_alert" && msg.action.ticker && (
+                      <div className="px-4 pb-3">
+                        <span
+                          className={clsx(
+                            "inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1",
+                            msg.actionCreated
+                              ? "bg-brand-light text-brand border border-brand-border"
+                              : "bg-slate-100 text-slate-500 border border-slate-200"
+                          )}
+                        >
+                          <Check size={11} />
+                          {msg.actionCreated ? "Alert created: " : "Alert: "}
+                          {msg.action.ticker} {msg.action.condition} ${msg.action.price}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
 
-            {/* Typing indicator */}
             {isTyping && (
               <div className="flex justify-start animate-fade-up">
                 <div className="bg-white border border-brand-subtle rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm flex items-center gap-1">
