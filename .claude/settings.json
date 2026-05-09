@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(pip install *)",
+      "Bash(pip3 install *)",
+      "Bash(python3 -m venv .venv)",
+      "Bash(.venv/bin/pip install *)",
+      "Bash(.venv/bin/python -m pytest server/tests/ -v)",
+      "Bash(PYTHONPATH=. .venv/bin/uvicorn server.app.main:app --port 8000 --timeout-graceful-shutdown 3)",
+      "Bash(curl -s http://localhost:8000/docs)",
+      "Bash(curl -s http://localhost:8000/api/stock/price?ticker=NVDA)",
+      "Bash(python3 -m json.tool kill %1)",
+      "Bash(PYTHONPATH=. .venv/bin/uvicorn server.app.main:app --port 8000)",
+      "Bash(python3 -m json.tool)",
+      "Bash(kill %1)",
+      "Bash(PYTHONPATH=. ../.venv/bin/uvicorn app.main:app --port 8000)",
+      "Bash(curl -s http://localhost:8000/api/health)",
+      "Bash(curl -s \"http://localhost:8000/api/stock/price?ticker=NVDA\")",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(curl -s http://localhost:3000)",
+      "Read(//private/tmp/**)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/ticker/NVDA)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/settings)",
+      "Bash(PYTHONPATH=. ../.venv/bin/uvicorn app.main:app --reload --port 8000)",
+      "Bash(echo \"FastAPI PID: $!\")",
+      "Bash(echo \"Next.js PID: $!\")",
+      "Bash(curl -s -o /dev/null -w \"Next.js: %{http_code}\\\\n\" http://localhost:3000)",
+      "Bash(curl -s -o /dev/null -w \"FastAPI: %{http_code}\\\\n\" http://localhost:8000/api/health)"
+    ],
+    "additionalDirectories": [
+      "/Users/cadenannison/projects/Trader-Notebook/Trader-Notebook/client/src/app/ticker"
+    ]
+  }
+}

@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r server/requirements.txt
+
+      - name: Lint
+        run: ruff check server/ worker/
+
+      - name: Dependency audit
+        run: pip install pip-audit && pip-audit -r server/requirements.txt
+
+      - name: Test
+        run: pytest tests/ -v --cov=app
+        working-directory: server
+
+  client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: client/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install
+        working-directory: client
+
+      - name: Format check
+        run: pnpm prettier --check src/
+        working-directory: client
+
+      - name: Type check
+        run: pnpm tsc --noEmit
+        working-directory: client
+
+      - name: Test
+        run: pnpm test --run
+        working-directory: client
+
+      - name: Dependency audit
+        run: pnpm audit --audit-level=high
+        working-directory: client

@@ -1,0 +1,34 @@
+import type { PriceTrigger } from "@shared/types";
+
+export const MOCK_TRIGGERS: PriceTrigger[] = [
+  {
+    id: "trigger-1",
+    ticker: "NVDA",
+    target_price: 900.0,
+    condition: "above",
+    is_active: true,
+    auto_disarm: true,
+    cooldown_hours: 4,
+    last_triggered_at: null,
+  },
+  {
+    id: "trigger-2",
+    ticker: "NVDA",
+    target_price: 800.0,
+    condition: "below",
+    is_active: false,
+    auto_disarm: true,
+    cooldown_hours: 4,
+    last_triggered_at: "2026-04-28T11:00:00Z",
+  },
+  {
+    id: "trigger-3",
+    ticker: "VGT",
+    target_price: 450.0,
+    condition: "above",
+    is_active: true,
+    auto_disarm: false,
+    cooldown_hours: 8,
+    last_triggered_at: null,
+  },
+];

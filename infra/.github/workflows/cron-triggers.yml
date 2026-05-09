@@ -1,0 +1,30 @@
+name: Trigger Worker
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: # allow manual run for testing
+
+jobs:
+  check-triggers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install worker dependencies
+        run: pip install -r worker/requirements.txt
+
+      - name: Run trigger worker
+        run: python worker/trigger_worker.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
+          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MASTER_KEY: ${{ secrets.MASTER_KEY }}

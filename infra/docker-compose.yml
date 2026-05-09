@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  server:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../.env
+    volumes:
+      - ../server:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Uncomment once you have run `supabase start` locally:
+  # db:
+  #   image: supabase/postgres:15.1.0.117
+  #   ports:
+  #     - "5432:5432"
+  #   environment:
+  #     POSTGRES_PASSWORD: postgres
