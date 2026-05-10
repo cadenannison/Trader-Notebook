@@ -18,6 +18,8 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> str:
         return _DEV_USER_ID
 
     if not authorization or not authorization.startswith("Bearer "):
+        if settings.supabase_jwt_secret:
+            raise HTTPException(status_code=401, detail="Missing Authorization header")
         return _DEV_USER_ID
 
     token = authorization[len("Bearer "):]
