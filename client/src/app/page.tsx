@@ -1,30 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import { clsx } from "clsx";
 import { Check, Mic, MicOff, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import api from "@/lib/api";
 import { useCreateTrigger } from "@/hooks/useTriggers";
-
-interface ChatAction {
-  type: "add_alert" | "show_view";
-  ticker?: string;
-  condition?: string;
-  price?: number;
-  note?: string;
-  view?: string;
-}
-
-interface ChatMessage {
-  id: string;
-  role: "user" | "ai";
-  text: string;
-  action?: ChatAction | null;
-  actionCreated?: boolean;
-}
+import { useAppStore, type ChatAction, type ChatMessage } from "@/store/appStore";
 
 const HINTS = [
   "Alert me when NVDA breaks above $950",
@@ -44,7 +29,7 @@ export default function ChatPage() {
   const router = useRouter();
   const { mutateAsync: createTrigger } = useCreateTrigger();
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { chatMessages: messages, addChatMessage, updateChatMessage } = useAppStore();
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -70,7 +55,7 @@ export default function ChatPage() {
     if (!text || isTyping) return;
 
     const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", text };
-    setMessages((prev) => [...prev, userMsg]);
+    addChatMessage(userMsg);
     setInput("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
     setIsTyping(true);
@@ -94,7 +79,7 @@ export default function ChatPage() {
         text: data.message,
         action: data.action,
       };
-      setMessages((prev) => [...prev, aiMsg]);
+      addChatMessage(aiMsg);
 
       if (data.action?.type === "show_view" && data.action.view) {
         const path = VIEW_PATHS[data.action.view];
@@ -115,22 +100,21 @@ export default function ChatPage() {
             auto_disarm: true,
             cooldown_hours: 4,
           });
-          setMessages((prev) =>
-            prev.map((m) => (m.id === aiId ? { ...m, actionCreated: true } : m))
-          );
+          updateChatMessage(aiId, { actionCreated: true });
         } catch {
-          // trigger creation failed — user can add manually via Alerts
+          // trigger creation failed silently — user can add manually via Alerts
         }
       }
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: aiId,
-          role: "ai",
-          text: "Something went wrong — make sure the server is running.",
-        },
-      ]);
+    } catch (err: unknown) {
+      const detail =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : null;
+      addChatMessage({
+        id: aiId,
+        role: "ai",
+        text: detail ?? "Something went wrong — make sure the server is running.",
+      });
     } finally {
       setIsTyping(false);
     }
@@ -154,7 +138,6 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-screen">
-      {/* Scroll area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
         {!hasMessages ? (
           <div className="flex flex-col items-center justify-center h-full gap-6 pb-24">
@@ -167,7 +150,6 @@ export default function ChatPage() {
                 Tell me what to watch. I'll set your price alerts and keep notes on your thesis.
               </p>
             </div>
-
             <div className="flex flex-wrap justify-center gap-2 max-w-lg">
               {HINTS.map((hint) => (
                 <button
@@ -232,7 +214,6 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* Input bar */}
       <div className="px-6 py-4 border-t border-brand-subtle bg-white">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-end gap-2 bg-app-bg border border-brand-border rounded-xl px-3 py-2 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/10 transition-all">

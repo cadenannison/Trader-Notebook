@@ -13,11 +13,15 @@ app = FastAPI(title="tradrNotebook API", version="0.1.0")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+import re
+
+_ORIGIN_RE = re.compile(r"^https?://localhost(:\d+)?$")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.client_url],
+    allow_origin_regex=r"https?://localhost(:\d+)?",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
