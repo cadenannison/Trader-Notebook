@@ -94,8 +94,8 @@ class ChatResponse(BaseModel):
 _MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"]
 
 async def _fetch_prices_for_message(message: str) -> str:
-    candidates = set(re.findall(r"\b[A-Z]{1,5}\b", message))
-    tickers = [t for t in candidates if t not in _STOP_WORDS and len(t) >= 2][:4]
+    candidates = set(re.findall(r"\b[A-Za-z]{1,5}\b", message))
+    tickers = [t.upper() for t in candidates if t.upper() not in _STOP_WORDS and len(t) >= 2][:4]
     if not tickers:
         return "No price context available."
     lines = []
