@@ -210,6 +210,15 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
+# Build artifacts
+*.tsbuildinfo
+
+# Tool caches
+.cache_ggshield
+
+# Secret scanning baseline
+# .secrets.baseline is intentionally committed — do not ignore it
+
 # PyPI configuration file
 .pypirc
 

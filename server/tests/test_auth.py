@@ -13,7 +13,7 @@ from jose import jwt
 
 from app.config import settings
 
-_TEST_SECRET = "test-jwt-secret-for-unit-tests-only"
+_TEST_SECRET = "test-jwt-secret-for-unit-tests-only"  # pragma: allowlist secret
 
 
 def _make_token(user_id: str = "test-user-123", secret: str = _TEST_SECRET) -> str:
