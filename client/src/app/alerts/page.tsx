@@ -285,7 +285,7 @@ export default function AlertsPage() {
           </div>
           <p className="text-sm font-medium text-slate-700">No alerts yet</p>
           <p className="text-xs text-slate-400 max-w-xs">
-            Head to Chat and tell me what levels to watch. I'll create alerts automatically.
+            Head to Chat and tell me what levels to watch. I&apos;ll create alerts automatically.
           </p>
         </div>
       ) : (

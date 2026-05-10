@@ -301,7 +301,7 @@ export default function NotebookPage() {
         <>
           {trades.length === 0 ? (
             <p className="text-sm text-slate-400 py-12 text-center">
-              No trades logged. Use "Log trade" on a triggered alert.
+              No trades logged. Use &quot;Log trade&quot; on a triggered alert.
             </p>
           ) : (
             <div className="space-y-6">

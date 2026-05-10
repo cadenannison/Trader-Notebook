@@ -147,7 +147,7 @@ export default function ChatPage() {
               </div>
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">tradrNotebook</h1>
               <p className="text-sm text-slate-500 max-w-xs">
-                Tell me what to watch. I'll set your price alerts and keep notes on your thesis.
+                Tell me what to watch. I&apos;ll set your price alerts and keep notes on your thesis.
               </p>
             </div>
             <div className="flex flex-wrap justify-center gap-2 max-w-lg">
