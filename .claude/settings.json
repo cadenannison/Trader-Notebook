@@ -32,7 +32,14 @@
       "Bash(xxd /Users/cadenannison/projects/Trader-Notebook/Trader-Notebook/design-files/javascript.js)",
       "Bash(.venv/bin/python -c \"from jose import jwt; from supabase import create_client; print\\('OK'\\)\")",
       "Bash(PYTHONPATH=. python -c \"from app.main import app; print\\('server ok'\\)\")",
-      "Bash(PYTHONPATH=. ../.venv/bin/python -c \"from app.main import app; print\\('server ok'\\)\")"
+      "Bash(PYTHONPATH=. ../.venv/bin/python -c \"from app.main import app; print\\('server ok'\\)\")",
+      "Bash(python3 -c \"import secrets; print\\(secrets.token_hex\\(32\\)\\)\")",
+      "Bash(supabase --version)",
+      "Bash(curl -s -X POST https://jhmzuielhxjasvgnheuy.supabase.co/rest/v1/rpc/exec_sql -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpobXp1aWVsaHhqYXN2Z25oZXV5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODM2NzM1NSwiZXhwIjoyMDkzOTQzMzU1fQ.Ly3UB4WnVSBYL6aWC3i22AeoIvLSqaYGQHjACXNtaec' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpobXp1aWVsaHhqYXN2Z25oZXV5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODM2NzM1NSwiZXhwIjoyMDkzOTQzMzU1fQ.Ly3UB4WnVSBYL6aWC3i22AeoIvLSqaYGQHjACXNtaec' -H 'Content-Type: application/json' -d '{\"sql\":\"SELECT 1\"}')",
+      "Bash(curl -s 'https://jhmzuielhxjasvgnheuy.supabase.co/rest/v1/notes?limit=1' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpobXp1aWVsaHhqYXN2Z25oZXV5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODM2NzM1NSwiZXhwIjoyMDkzOTQzMzU1fQ.Ly3UB4WnVSBYL6aWC3i22AeoIvLSqaYGQHjACXNtaec' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpobXp1aWVsaHhqYXN2Z25oZXV5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODM2NzM1NSwiZXhwIjoyMDkzOTQzMzU1fQ.Ly3UB4WnVSBYL6aWC3i22AeoIvLSqaYGQHjACXNtaec')",
+      "Bash(curl -s 'https://jhmzuielhxjasvgnheuy.supabase.co/rest/v1/triggers?limit=1' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpobXp1aWVsaHhqYXN2Z25oZXV5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODM2NzM1NSwiZXhwIjoyMDkzOTQzMzU1fQ.Ly3UB4WnVSBYL6aWC3i22AeoIvLSqaYGQHjACXNtaec' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpobXp1aWVsaHhqYXN2Z25oZXV5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODM2NzM1NSwiZXhwIjoyMDkzOTQzMzU1fQ.Ly3UB4WnVSBYL6aWC3i22AeoIvLSqaYGQHjACXNtaec')",
+      "Bash(lsof -ti:3000,3001,3002,8000)",
+      "Bash(curl -s http://localhost:3002/ -o /dev/null -w \"%{http_code}\")"
     ],
     "additionalDirectories": [
       "/Users/cadenannison/projects/Trader-Notebook/Trader-Notebook/client/src/app/ticker"
