@@ -38,3 +38,28 @@ CREATE POLICY "triggers: own rows only" ON triggers
 
 CREATE INDEX triggers_user_ticker ON triggers (user_id, ticker);
 CREATE INDEX triggers_active ON triggers (is_active) WHERE is_active = TRUE;
+
+-- ── Agent audit logs ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS agent_audit_logs (
+  id        UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  agent_id  TEXT        NOT NULL,
+  action    TEXT        NOT NULL,
+  metadata  JSONB,
+  user_id   UUID
+);
+
+ALTER TABLE agent_audit_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "audit_logs: own rows only" ON agent_audit_logs
+  FOR SELECT USING (auth.uid() = user_id);
+
+-- ── System config (kill switch + heartbeat) ───────────────────────────────────
+CREATE TABLE IF NOT EXISTS system_config (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+INSERT INTO system_config (key, value)
+  VALUES ('maintenance_mode', 'false')
+  ON CONFLICT (key) DO NOTHING;
