@@ -51,12 +51,34 @@ Recent news: {news}
 # ── Market hours ──────────────────────────────────────────────────────────────
 
 
-def is_market_open() -> bool:
-    et = pytz.timezone("America/New_York")
-    now = datetime.now(et)
+def _is_market_hours(now: datetime) -> bool:
+    """Pure function — takes a timezone-aware datetime, returns True if NYSE is open."""
     if now.weekday() >= 5:  # Saturday=5, Sunday=6
         return False
     return time(9, 30) <= now.time() <= time(16, 0)
+
+
+def is_market_open() -> bool:
+    et = pytz.timezone("America/New_York")
+    return _is_market_hours(datetime.now(et))
+
+
+def _is_trigger_hit(trigger: dict, price: float) -> bool:
+    """Return True if the current price satisfies the trigger condition."""
+    return (trigger["condition"] == "above" and price >= trigger["target_price"]) or (
+        trigger["condition"] == "below" and price <= trigger["target_price"]
+    )
+
+
+def _in_cooldown(trigger: dict, now: datetime) -> bool:
+    """Return True if a stay-armed trigger is still within its cooldown window."""
+    if trigger["auto_disarm"] or not trigger.get("last_triggered_at"):
+        return False
+    last_str = trigger["last_triggered_at"].replace("Z", "+00:00")
+    last = datetime.fromisoformat(last_str)
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return (now - last).total_seconds() / 3600 < trigger["cooldown_hours"]
 
 
 # ── Crypto (inlined from server/app/crypto/keys.py) ──────────────────────────
@@ -302,25 +324,13 @@ async def main() -> None:
             print(f"  [{ticker}] No price data — skipping.")
             continue
 
-        hit = (trigger["condition"] == "above" and price >= trigger["target_price"]) or (
-            trigger["condition"] == "below" and price <= trigger["target_price"]
-        )
-        if not hit:
+        if not _is_trigger_hit(trigger, price):
             print(f"  [{ticker}] ${price:.2f} vs ${trigger['target_price']} {trigger['condition']} — no hit.")
             continue
 
-        if not trigger["auto_disarm"] and trigger.get("last_triggered_at"):
-            last_str = trigger["last_triggered_at"].replace("Z", "+00:00")
-            last = datetime.fromisoformat(last_str)
-            if last.tzinfo is None:
-                last = last.replace(tzinfo=timezone.utc)
-            elapsed_hours = (now - last).total_seconds() / 3600
-            if elapsed_hours < trigger["cooldown_hours"]:
-                print(
-                    f"  [{ticker}] Trigger {trigger['id']} in cooldown "
-                    f"({elapsed_hours:.1f}h / {trigger['cooldown_hours']}h) — skipping."
-                )
-                continue
+        if _in_cooldown(trigger, now):
+            print(f"  [{ticker}] Trigger {trigger['id']} in cooldown — skipping.")
+            continue
 
         print(f"  [{ticker}] TRIGGER HIT: ${price:.2f} {trigger['condition']} ${trigger['target_price']:.2f}")
 
