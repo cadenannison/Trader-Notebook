@@ -1,22 +1,22 @@
 # Trader Notebook — Plan vs. Reality
 
-> Generated 2026-05-10. Tracks what the GAMEPLAN.md called for vs. what's actually built.
+> Updated 2026-05-10. Tracks what the GAMEPLAN.md called for vs. what's actually built.
 
 ---
 
 ## Inconsistencies (plan said X, code does Y)
 
-| # | Plan | Reality |
-|---|---|---|
-| 1 | "Gemini 2.0 Flash **via Pydantic AI**" | Code uses direct Gemini SDK — `pydantic-ai` is not installed or used anywhere |
-| 2 | `agent_audit_logs` table defined in Phase 2 schema | Missing from `infra/migrations/001_initial_schema.sql` |
-| 3 | `system_config` table defined in Phase 2 schema | Missing from `infra/migrations/001_initial_schema.sql` |
-| 4 | `worker/requirements.txt` listed in monorepo layout | File does not exist — `cron-triggers.yml` will fail at `pip install` step |
-| 5 | Worker wires Supabase + Polygon + Resend end-to-end | All 7 worker functions are stubbed (`print()` / mock data / hardcoded false) |
-| 6 | Resend email on trigger fire (MVP scope) | `send_email()` is `print()` — RESEND_API_KEY not set |
-| 7 | CRON_SECRET for authenticating cron job | Not set in `server/.env` or GitHub Actions secrets |
-| 8 | `client/.env.local` with Supabase public keys | File does not exist |
-| 9 | Render deploy hook in `deploy.yml` | Placeholder comment only — no real URL wired |
+| # | Plan | Reality | Status |
+|---|---|---|---|
+| 1 | "Gemini 2.0 Flash **via Pydantic AI**" | Code uses direct Gemini SDK — `pydantic-ai` is not installed or used anywhere | Open |
+| 2 | `agent_audit_logs` table defined in Phase 2 schema | Now in `infra/migrations/001_initial_schema.sql` | ✅ Resolved |
+| 3 | `system_config` table defined in Phase 2 schema | Now in `infra/migrations/001_initial_schema.sql` | ✅ Resolved |
+| 4 | `worker/requirements.txt` listed in monorepo layout | File now exists | ✅ Resolved |
+| 5 | Worker wires Supabase + Polygon + Resend end-to-end | All 7 functions wired to real services | ✅ Resolved |
+| 6 | Resend email on trigger fire (MVP scope) | `send_email()` calls Resend SDK — but `RESEND_API_KEY` is still an empty string | Open |
+| 7 | CRON_SECRET for authenticating cron job | Key exists in `.env` but value is empty | Open |
+| 8 | `client/.env.local` with Supabase public keys | File now exists | ✅ Resolved |
+| 9 | Render deploy hook in `deploy.yml` | `deploy.yml` does not exist at all in workflows | Open |
 
 ---
 
@@ -32,6 +32,8 @@
 - [x] MASTER_KEY generated and stored
 - [x] `.env.example` committed with all required keys documented
 - [x] `Makefile` with `dev`, `test`, `worker` targets
+- [x] Secret scanning — gitleaks + detect-secrets as pre-commit hooks
+- [x] Secret scanning — gitleaks-action in CI (runs on every push)
 
 ---
 
@@ -41,10 +43,10 @@
 - [x] `notes` table schema with RLS policy
 - [x] `triggers` table schema with RLS policy
 - [x] AES-256-GCM per-user encryption (`server/app/crypto/keys.py`)
-- [ ] `agent_audit_logs` table — **missing from migration** (inconsistency #2)
-- [ ] `system_config` table for kill switch — **missing from migration** (inconsistency #3)
-- [ ] Apply `infra/migrations/001_initial_schema.sql` to Supabase — **tables not yet created in DB**
-- [ ] Create `client/.env.local` — **missing** (inconsistency #8)
+- [x] `agent_audit_logs` table in migration
+- [x] `system_config` table for kill switch in migration
+- [ ] Apply `infra/migrations/001_initial_schema.sql` to Supabase — **tables not yet confirmed created in DB**
+- [x] `client/.env.local` — exists
 
 ---
 
@@ -53,14 +55,15 @@
 - [x] CORS middleware locked to `CLIENT_URL`
 - [x] Supabase JWT validation middleware (`server/app/middleware/auth.py`)
 - [x] Rate limiting via `slowapi` on all endpoints
-- [x] `GET /api/stock/price` — Polygon.io proxy with mocks
+- [x] `GET /api/stock/price` — Polygon.io proxy
 - [x] `GET /api/stock/validate` — ticker validation before save
 - [x] `POST/GET /api/notes` — encrypted create + fetch
 - [x] `GET/POST/PUT/DELETE /api/triggers` — full CRUD + rearm
 - [x] `POST /api/chat` — Gemini AI chat endpoint
 - [x] `GET /api/news` — Finnhub news proxy
-- [x] `GET /api/user/export` + `DELETE /api/user/me` — stubbed
 - [x] `GET /api/health` — key config status
+- [ ] `GET /api/user/export` — wired but TODO: decrypt notes before returning
+- [ ] `DELETE /api/user/me` — wired but TODO: cascade delete Supabase auth user
 
 ---
 
@@ -73,68 +76,68 @@
 
 ## Phase 5 — Agentic Intelligence
 
-- [x] `insight_engine.py` scaffolded
+- [x] `insight_engine.py` scaffolded and integrated in worker
 - [ ] **Pydantic AI not used** — plan called for `pydantic_ai.Agent`; code calls Gemini SDK directly (inconsistency #1)
-- [ ] `agent_audit_logs` write before email delivery — not wired (table also missing)
-- [ ] Resend email delivery — `send_email()` is `print()` (inconsistency #6)
+- [x] `write_audit_log()` wired to `agent_audit_logs` before email delivery
+- [ ] `send_email()` Resend call wired — blocked on `RESEND_API_KEY` being set (inconsistency #6)
 - [ ] Phase 2: Migrate to Claude Sonnet with structured `InsightOutput` JSON
 
 ---
 
 ## Phase 6 — Continuous Monitoring (Worker)
 
-- [x] `worker/trigger_worker.py` scaffolded
+- [x] `worker/trigger_worker.py` fully implemented
+- [x] `worker/requirements.txt` — file exists
 - [x] GitHub Actions cron workflow (`infra/.github/workflows/cron-triggers.yml`)
 - [x] Market hours check (`is_market_open()`)
 - [x] Cooldown logic for `auto_disarm = false` triggers
-- [ ] `worker/requirements.txt` — **file missing**, cron will fail (inconsistency #4)
-- [ ] `fetch_active_triggers()` — wire to Supabase (currently returns mock data)
-- [ ] `batch_fetch_prices()` — wire to Polygon.io snapshot API (currently returns mock prices)
-- [ ] `run_insight_agent()` — wire pydantic-ai + Gemini (currently returns template string)
-- [ ] `send_email()` — wire Resend (currently `print()`) — needs RESEND_API_KEY
-- [ ] `write_audit_log()` — wire to `agent_audit_logs` table (currently `print()`)
-- [ ] `check_kill_switch()` — wire to `system_config` table (currently returns `False`)
-- [ ] `update_trigger_post_fire()` — wire to Supabase update (currently `print()`)
-- [ ] Add `RESEND_API_KEY` to `server/.env` (inconsistency #6)
-- [ ] Add `CRON_SECRET` to `server/.env` + GitHub Actions secrets (inconsistency #7)
+- [x] `fetch_active_triggers()` — wired to Supabase
+- [x] `batch_fetch_prices()` — wired to Polygon.io snapshot API
+- [x] `run_insight_agent()` — wired to Gemini SDK (not pydantic-ai)
+- [x] `write_audit_log()` — wired to `agent_audit_logs` table
+- [x] `check_kill_switch()` — wired to `system_config` table
+- [x] `update_trigger_post_fire()` — wired to Supabase update
+- [ ] `send_email()` — wired but blocked on empty `RESEND_API_KEY`
+- [ ] `last_run_at` heartbeat written to `system_config` on each worker success
+- [ ] Add real value for `RESEND_API_KEY` in `server/.env` + GitHub Actions secrets
+- [ ] Add real value for `CRON_SECRET` in `server/.env` + GitHub Actions secrets
 
 ---
 
 ## Phase 7 — DevOps & GRC Hardening
 
-- [x] `ci.yml` — lint, type check, test, dependency audit on PR
+- [x] `ci.yml` — lint (ruff), bandit security scan, type check, dependency audit (pip-audit), 70 tests on PR
 - [x] `cron-triggers.yml` — 15-min schedule + manual trigger
-- [x] `deploy.yml` skeleton
-- [ ] Render deploy hook URL — placeholder in `deploy.yml` (inconsistency #9)
+- [x] Secret scanning — gitleaks pre-commit + gitleaks-action CI
+- [ ] `deploy.yml` — file does not exist; Render deploy hook not wired (inconsistency #9)
 - [ ] Sentry integration (FastAPI + React) — not yet added
-- [ ] GitHub secret scanning — enable in repo settings
-- [ ] `last_run_at` heartbeat written to `system_config` on each worker success
+- [ ] GitHub secret scanning — enable in repo Settings → Security → Secret scanning
+- [ ] `last_run_at` heartbeat in `system_config`
 - [ ] Phase 2: OWASP ZAP self-audit
 
 ---
 
 ## Frontend Pages
 
-- [x] `/` — Chat interface (AI chat, hint suggestions, persistent history)
+- [x] `/` — Chat interface (AI chat, hint suggestions, persistent history, can create triggers)
 - [x] `/alerts` — Alerts dashboard (grouped by ticker, proximity bars, signal badges)
 - [x] `/notebook` — Trading journal (stats cards, active/triggered/trade tabs)
 - [x] `/news` — Market news (Finnhub, sentiment badges)
-- [x] `/settings` — Settings page (UI exists, all actions stubbed)
-- [ ] `/ticker/[symbol]` — Route exists, page is empty
-- [ ] `/stats` — Route exists, page is empty
+- [x] `/settings` — Settings page (UI exists, export/delete stubbed)
+- [x] `/ticker/[symbol]` — Per-ticker page with notes, triggers, price (fully wired with hooks)
+- [x] `/stats` — Stats page with win rate, avg return, best trade (using mock trade data)
 
 ---
 
-## Frontend Wiring (UI exists, mutations not connected)
+## Frontend Wiring
 
-- [ ] `NewNoteForm` → `useNotes` create mutation
-- [ ] `NewTriggerForm` → wired into Alerts page
-- [ ] Rearm trigger button → `useTriggers` rearm mutation
-- [ ] Trade logging UI → backend create/update endpoints
-- [ ] Settings — save API key inputs (currently no-op)
-- [ ] Settings — export data button → `GET /api/user/export`
-- [ ] Settings — delete account button → `DELETE /api/user/me`
-- [ ] Fix `user.py`: decrypt notes on export, cascade delete auth user in Supabase
+- [x] `NewNoteForm` → `useCreateNote` mutation — wired
+- [x] `NewTriggerForm` → `useCreateTrigger` mutation — wired (Alerts page + ticker page + chat page)
+- [x] Rearm trigger button → `useRearmTrigger` mutation — wired in `TriggerCard`
+- [x] Delete trigger → `useDeleteTrigger` mutation — wired in `TriggerCard`
+- [ ] Trade logging UI → backend create/update endpoints (currently using `MOCK_TRADES`)
+- [ ] Settings — export data button → `GET /api/user/export` (currently `alert()`)
+- [ ] Settings — delete account button → `DELETE /api/user/me` (currently `alert()`)
 
 ---
 
@@ -150,9 +153,9 @@
 | `POLYGON_API_KEY` | ✅ Set |
 | `FINNHUB_API_KEY` | ✅ Set |
 | `GEMINI_API_KEY` | ✅ Set |
-| `RESEND_API_KEY` | ❌ Not set |
-| `CRON_SECRET` | ❌ Not set |
-| `client/.env.local` | ❌ File missing |
+| `RESEND_API_KEY` | ❌ Empty — worker email delivery blocked |
+| `CRON_SECRET` | ❌ Empty |
+| `client/.env.local` | ✅ Exists |
 
 ---
 
@@ -162,9 +165,22 @@
 
 **Blockers remaining:**
 
-1. Create `worker/requirements.txt`
-2. Add `agent_audit_logs` + `system_config` tables to migration
-3. Apply migration to Supabase
-4. Wire all 7 stubbed worker functions
-5. Add `RESEND_API_KEY` + `CRON_SECRET` to secrets
-6. Create `client/.env.local`
+1. Set `RESEND_API_KEY` in `server/.env` + GitHub Actions secrets
+2. Set `CRON_SECRET` in `server/.env` + GitHub Actions secrets
+3. Apply migration to Supabase (confirm tables exist in DB)
+4. Create `deploy.yml` for Render auto-deploy
+
+**After MVP — Phase 2 backlog:**
+
+- Wire trade logging to backend (replace `MOCK_TRADES`)
+- Wire Settings export + delete account actions
+- Implement note decrypt in `/api/user/export`
+- Implement cascade auth delete in `/api/user/me`
+- Sentry integration (FastAPI + React)
+- Enable GitHub secret scanning in repo settings
+- Add `last_run_at` heartbeat to `system_config`
+- Migrate insight agent to Claude Sonnet with structured `InsightOutput`
+- SSE live price stream
+- Browser push notifications
+- In-app notification feed
+- OWASP ZAP self-audit
