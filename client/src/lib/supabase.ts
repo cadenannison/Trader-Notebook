@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+// Fall back to a syntactically valid placeholder so createClient doesn't throw
+// during Next.js static generation when env vars aren't injected yet.
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder";
 
-// Client is created even with empty strings so imports don't throw.
-// Auth features are simply inoperative until the env vars are set.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);

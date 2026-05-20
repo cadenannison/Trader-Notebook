@@ -3,11 +3,19 @@
 import { useState } from "react";
 
 import { clsx } from "clsx";
+import { X } from "lucide-react";
 
 import { useNotes } from "@/hooks/useNotes";
+import { useTrades, useCloseTrade, EXIT_REASON_LABELS, TIME_HORIZON_LABELS } from "@/hooks/useTrades";
 import { useTriggers } from "@/hooks/useTriggers";
-import { MOCK_TRADES } from "@/mocks/trades";
-import type { PriceTrigger, Trade, UserNote } from "@shared/types";
+import type { ConfidenceTag, ExitReason, PriceTrigger, Trade, UserNote } from "@shared/types";
+
+const CONFIDENCE_COLORS: Record<ConfidenceTag, string> = {
+  confident:  "bg-emerald-50 text-emerald-700",
+  neutral:    "bg-slate-100 text-slate-600",
+  uncertain:  "bg-amber-50 text-amber-700",
+  fomo:       "bg-red-50 text-red-600",
+};
 
 type Filter = "active" | "triggered" | "trades";
 
@@ -141,34 +149,45 @@ function NoteRow({ note }: { note: UserNote }) {
 function TradeCard({ trade }: { trade: Trade }) {
   const isWin = (trade.return_pct ?? 0) > 0;
   const loggedAt = new Date(trade.logged_at).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
+    month: "short", day: "numeric", year: "numeric",
   });
 
   return (
     <article className="bg-white border border-brand-subtle rounded-xl p-4 space-y-3 hover:border-brand-border transition-colors">
       <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1 min-w-0">
-          <div className="flex items-center gap-2">
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-base font-extrabold text-slate-900">{trade.ticker}</span>
             {trade.status === "open" && (
               <span className="text-[10.5px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
                 Open
               </span>
             )}
+            <span className={clsx(
+              "text-[10.5px] font-semibold px-2 py-0.5 rounded-full capitalize",
+              CONFIDENCE_COLORS[trade.confidence_tag]
+            )}>
+              {trade.confidence_tag}
+            </span>
+            <span className="text-[10.5px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">
+              {TIME_HORIZON_LABELS[trade.time_horizon]}
+            </span>
           </div>
-          <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{trade.pre_trade_notes}</p>
+          {trade.pre_trade_notes && (
+            <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{trade.pre_trade_notes}</p>
+          )}
+          {trade.exit_reason && (
+            <p className="text-[10.5px] text-slate-400">
+              Exit: <span className="text-slate-600">{EXIT_REASON_LABELS[trade.exit_reason as ExitReason]}</span>
+            </p>
+          )}
         </div>
         {trade.return_pct != null && (
-          <span
-            className={clsx(
-              "text-base font-bold tabular-nums shrink-0",
-              isWin ? "text-green-600" : "text-red-500"
-            )}
-          >
-            {isWin ? "+" : ""}
-            {trade.return_pct.toFixed(1)}%
+          <span className={clsx(
+            "text-base font-bold tabular-nums shrink-0",
+            isWin ? "text-emerald-600" : "text-red-500"
+          )}>
+            {isWin ? "+" : ""}{trade.return_pct.toFixed(1)}%
           </span>
         )}
       </div>
@@ -194,25 +213,30 @@ function TradeCard({ trade }: { trade: Trade }) {
 export default function NotebookPage() {
   const { data: triggers = [] } = useTriggers();
   const { data: notes = [] } = useNotes();
-  const trades = MOCK_TRADES;
+  const { data: trades = [], isLoading: tradesLoading } = useTrades();
 
   const activeTriggers = triggers.filter((t) => t.is_active);
   const firedTriggers = triggers.filter((t) => !t.is_active);
   const openTrades = trades.filter((t) => t.status === "open");
+  const closedTrades = trades.filter((t) => t.status === "closed");
+  const wins = closedTrades.filter((t) => (t.return_pct ?? 0) > 0);
+  const winRate = closedTrades.length > 0
+    ? Math.round((wins.length / closedTrades.length) * 100)
+    : null;
 
   const [filter, setFilter] = useState<Filter>("active");
 
   const stats = [
-    { key: "active" as Filter, value: activeTriggers.length, label: "Active alerts", sub: "watching" },
-    { key: "triggered" as Filter, value: firedTriggers.length, label: "Triggered", sub: "ready to act" },
-    { key: "trades" as Filter, value: trades.length, label: "Total trades", sub: "logged" },
-    { key: "trades" as Filter, value: openTrades.length, label: "Open positions", sub: "not yet closed" },
+    { key: "active" as Filter,   value: activeTriggers.length, label: "Active alerts",   sub: "watching" },
+    { key: "triggered" as Filter, value: firedTriggers.length,  label: "Triggered",       sub: "ready to act" },
+    { key: "trades" as Filter,   value: openTrades.length,      label: "Open positions",  sub: "not closed" },
+    { key: "trades" as Filter,   value: winRate ?? 0,           label: "Win rate",        sub: closedTrades.length > 0 ? `${closedTrades.length} closed` : "no closed trades" },
   ];
 
   const tabs: { key: Filter; label: string; count: number }[] = [
-    { key: "active", label: "Active", count: activeTriggers.length },
-    { key: "triggered", label: "Triggered", count: firedTriggers.length },
-    { key: "trades", label: "Trade history", count: trades.length },
+    { key: "active",    label: "Active",        count: activeTriggers.length },
+    { key: "triggered", label: "Triggered",     count: firedTriggers.length },
+    { key: "trades",    label: "Trade history", count: trades.length },
   ];
 
   return (
@@ -299,9 +323,22 @@ export default function NotebookPage() {
 
       {filter === "trades" && (
         <>
-          {trades.length === 0 ? (
+          {tradesLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="bg-white border border-brand-subtle rounded-xl p-4 animate-pulse space-y-3">
+                  <div className="flex gap-2">
+                    <div className="h-5 w-16 bg-slate-100 rounded" />
+                    <div className="h-5 w-12 bg-slate-100 rounded-full" />
+                    <div className="h-5 w-20 bg-slate-100 rounded-full" />
+                  </div>
+                  <div className="h-3 bg-slate-100 rounded w-3/4" />
+                </div>
+              ))}
+            </div>
+          ) : trades.length === 0 ? (
             <p className="text-sm text-slate-400 py-12 text-center">
-              No trades logged. Use &quot;Log trade&quot; on a triggered alert.
+              No trades logged yet. Tell the chat &quot;I bought X shares of NVDA at $900&quot;.
             </p>
           ) : (
             <div className="space-y-6">
@@ -317,18 +354,18 @@ export default function NotebookPage() {
                   </div>
                 </div>
               )}
-              <div className="space-y-3">
-                <p className="text-[10.5px] font-bold text-slate-400 uppercase tracking-[0.07em]">
-                  Closed trades
-                </p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {trades
-                    .filter((t) => t.status === "closed")
-                    .map((t) => (
+              {closedTrades.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-[10.5px] font-bold text-slate-400 uppercase tracking-[0.07em]">
+                    Closed trades
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {closedTrades.map((t) => (
                       <TradeCard key={t.id} trade={t} />
                     ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </>

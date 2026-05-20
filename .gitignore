@@ -245,3 +245,4 @@ pnpm-lock.yaml
 # IDE
 .vscode/
 .idea/
+.vercel

@@ -6,7 +6,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from app.api import chat, news, notes, stock, trades, triggers, user, watchlist
+from app.api import briefing, chat, news, notes, stock, trades, triggers, user, watchlist
 from app.config import settings
 
 limiter = Limiter(key_func=get_remote_address)
@@ -33,6 +33,7 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(news.router, prefix="/api")
 app.include_router(watchlist.router, prefix="/api")
 app.include_router(trades.router, prefix="/api")
+app.include_router(briefing.router, prefix="/api")
 
 
 @app.get("/api/health")

@@ -8,6 +8,7 @@ import { isAxiosError } from "axios";
 
 import { useNews } from "@/hooks/useNews";
 import { useTriggers } from "@/hooks/useTriggers";
+import { useWatchlist } from "@/hooks/useWatchlist";
 import type { NewsArticle } from "@shared/types";
 
 function timeAgo(iso: string) {
@@ -140,11 +141,15 @@ function ShimmerCard() {
 
 export default function NewsPage() {
   const { data: triggers } = useTriggers();
+  const { data: watchlist } = useWatchlist();
 
   const tickers = useMemo(() => {
-    if (!triggers) return [];
-    return Array.from(new Set(triggers.map((t) => t.ticker.toUpperCase())));
-  }, [triggers]);
+    const fromTriggers = (triggers ?? []).map((t) => t.ticker.toUpperCase());
+    const fromWatchlist = (watchlist ?? [])
+      .filter((e) => e.status === "watching" || e.status === "active_trade")
+      .map((e) => e.ticker.toUpperCase());
+    return Array.from(new Set([...fromTriggers, ...fromWatchlist]));
+  }, [triggers, watchlist]);
 
   const { data: articles, isLoading, error, refetch } = useNews(tickers);
 

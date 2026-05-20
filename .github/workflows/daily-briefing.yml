@@ -1,0 +1,43 @@
+name: Daily Briefing
+
+on:
+  schedule:
+    - cron: "0 13 * * 1-5"  # 8 AM ET (UTC-5), weekdays only
+  workflow_dispatch:
+
+concurrency:
+  group: daily-briefing
+  cancel-in-progress: false
+
+jobs:
+  send-briefing:
+    name: Send morning briefings
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-worker-${{ hashFiles('worker/requirements.txt') }}
+          restore-keys: pip-worker-
+
+      - name: Install dependencies
+        run: pip install -r worker/requirements.txt
+
+      - name: Run daily briefing
+        run: python worker/daily_briefing.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
