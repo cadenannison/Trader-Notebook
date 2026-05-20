@@ -5,7 +5,6 @@ Runs against the in-memory mock (no Supabase configured).
 Verifies API contract: shapes, status codes, validation, CRUD.
 """
 
-import pytest
 
 
 def test_get_triggers_returns_list(client):

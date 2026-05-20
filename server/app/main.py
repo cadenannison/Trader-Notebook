@@ -1,3 +1,5 @@
+import re
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -12,8 +14,6 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="tradrNotebook API", version="0.1.0")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-import re
 
 _ORIGIN_RE = re.compile(r"^https?://localhost(:\d+)?$")
 

@@ -1,0 +1,46 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+
+jobs:
+  # Only deploy when CI passed — never on failure
+  check:
+    name: Check CI result
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - run: echo "CI passed — proceeding to deploy"
+
+  # ── Server → Render ───────────────────────────────────────────────────────
+  deploy-server:
+    name: Deploy server (Render)
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - name: Trigger Render deploy
+        run: |
+          curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" \
+            -o /dev/null -w "HTTP %{http_code}\n"
+
+  # ── Client → Vercel ───────────────────────────────────────────────────────
+  # Vercel auto-deploys via its GitHub integration when it detects a push.
+  # This job exists as an explicit gate so the Actions UI shows deploy status.
+  deploy-client:
+    name: Deploy client (Vercel)
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Vercel
+        run: |
+          npm install -g vercel --silent
+          vercel --prod --token "${{ secrets.VERCEL_TOKEN }}" \
+            --yes --cwd client
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

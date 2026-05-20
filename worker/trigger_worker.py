@@ -267,7 +267,7 @@ async def run_insight_agent(
 
 def send_email(user_email: str | None, ticker: str, summary: str) -> None:
     if not RESEND_API_KEY or not user_email:
-        print(f"  [email] Skipped — missing Resend key or user email")
+        print("  [email] Skipped — missing Resend key or user email")
         return
     body = (
         f"{summary}\n\n"
