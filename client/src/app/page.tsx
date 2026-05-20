@@ -9,13 +9,16 @@ import { useState } from "react";
 
 import api from "@/lib/api";
 import { useCreateTrigger } from "@/hooks/useTriggers";
+import { useCreateWatchlistEntry } from "@/hooks/useWatchlist";
+import { useCreateTrade, useCloseTrade } from "@/hooks/useTrades";
 import { useAppStore, type ChatAction, type ChatMessage } from "@/store/appStore";
+import type { IdeaSource, TimeHorizon, ConfidenceTag, ExitReason } from "@shared/types";
 
 const HINTS = [
-  "Alert me when NVDA breaks above $950",
-  "Notify me if AAPL falls below $180",
-  "Set an alert 5% above current TSLA price",
-  "Show me my active alerts",
+  "I like NVDA for an AI earnings play, targeting $1100",
+  "I bought 50 shares of AAPL at $192, feeling confident",
+  "Alert me when TSLA breaks above $300",
+  "I sold my NVDA position at $950, hit my target",
 ];
 
 const VIEW_PATHS: Record<string, string> = {
@@ -23,11 +26,15 @@ const VIEW_PATHS: Record<string, string> = {
   notebook: "/notebook",
   news: "/news",
   stats: "/stats",
+  watchlist: "/notebook",
 };
 
 export default function ChatPage() {
   const router = useRouter();
   const { mutateAsync: createTrigger } = useCreateTrigger();
+  const { mutateAsync: createWatchlistEntry } = useCreateWatchlistEntry();
+  const { mutateAsync: createTrade } = useCreateTrade();
+  const { mutateAsync: closeTrade } = useCloseTrade();
 
   const { chatMessages: messages, addChatMessage, updateChatMessage } = useAppStore();
   const [input, setInput] = useState("");
@@ -102,7 +109,70 @@ export default function ChatPage() {
           });
           updateChatMessage(aiId, { actionCreated: true });
         } catch {
-          // trigger creation failed silently — user can add manually via Alerts
+          // silent — user can add manually via Alerts
+        }
+      }
+
+      if (
+        data.action?.type === "log_idea" &&
+        data.action.ticker &&
+        data.action.reasoning
+      ) {
+        try {
+          await createWatchlistEntry({
+            ticker: data.action.ticker,
+            reasoning: data.action.reasoning,
+            idea_source: (data.action.idea_source as IdeaSource) ?? "own_research",
+            time_horizon: (data.action.time_horizon as TimeHorizon) ?? "swing",
+            entry_price: data.action.entry_price ?? null,
+            target_price: data.action.target_price ?? null,
+            stop_price: data.action.stop_price ?? null,
+          });
+          updateChatMessage(aiId, { actionCreated: true });
+        } catch {
+          // silent
+        }
+      }
+
+      if (
+        data.action?.type === "log_trade" &&
+        data.action.ticker &&
+        data.action.entry_price
+      ) {
+        try {
+          await createTrade({
+            ticker: data.action.ticker,
+            entry_price: data.action.entry_price,
+            time_horizon: (data.action.time_horizon as TimeHorizon) ?? "swing",
+            confidence_tag: (data.action.confidence_tag as ConfidenceTag) ?? "neutral",
+            cost_basis: data.action.cost_basis ?? null,
+            shares: data.action.shares ?? null,
+            watchlist_entry_id: data.action.watchlist_entry_id ?? null,
+          });
+          updateChatMessage(aiId, { actionCreated: true });
+        } catch {
+          // silent
+        }
+      }
+
+      if (
+        data.action?.type === "close_trade" &&
+        data.action.exit_price &&
+        data.action.exit_reason
+      ) {
+        // close_trade requires a trade_id — if Gemini returns one use it,
+        // otherwise the user will need to close from the Notebook tab
+        if (data.action.trade_id) {
+          try {
+            await closeTrade({
+              id: data.action.trade_id,
+              exit_price: data.action.exit_price,
+              exit_reason: data.action.exit_reason as ExitReason,
+            });
+            updateChatMessage(aiId, { actionCreated: true });
+          } catch {
+            // silent
+          }
         }
       }
     } catch (err: unknown) {
@@ -178,17 +248,57 @@ export default function ChatPage() {
                     <p className="px-4 py-2.5 text-sm leading-relaxed text-slate-800">{msg.text}</p>
                     {msg.action?.type === "add_alert" && msg.action.ticker && (
                       <div className="px-4 pb-3">
-                        <span
-                          className={clsx(
-                            "inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1",
-                            msg.actionCreated
-                              ? "bg-brand-light text-brand border border-brand-border"
-                              : "bg-slate-100 text-slate-500 border border-slate-200"
-                          )}
-                        >
+                        <span className={clsx(
+                          "inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1",
+                          msg.actionCreated
+                            ? "bg-brand-light text-brand border border-brand-border"
+                            : "bg-slate-100 text-slate-500 border border-slate-200"
+                        )}>
                           <Check size={11} />
-                          {msg.actionCreated ? "Alert created: " : "Alert: "}
+                          {msg.actionCreated ? "Alert set: " : "Alert: "}
                           {msg.action.ticker} {msg.action.condition} ${msg.action.price}
+                        </span>
+                      </div>
+                    )}
+                    {msg.action?.type === "log_idea" && msg.action.ticker && (
+                      <div className="px-4 pb-3">
+                        <span className={clsx(
+                          "inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1",
+                          msg.actionCreated
+                            ? "bg-brand-light text-brand border border-brand-border"
+                            : "bg-slate-100 text-slate-500 border border-slate-200"
+                        )}>
+                          <Check size={11} />
+                          {msg.actionCreated ? "Added to watchlist: " : "Watchlist: "}
+                          {msg.action.ticker}
+                        </span>
+                      </div>
+                    )}
+                    {msg.action?.type === "log_trade" && msg.action.ticker && (
+                      <div className="px-4 pb-3">
+                        <span className={clsx(
+                          "inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1",
+                          msg.actionCreated
+                            ? "bg-brand-light text-brand border border-brand-border"
+                            : "bg-slate-100 text-slate-500 border border-slate-200"
+                        )}>
+                          <Check size={11} />
+                          {msg.actionCreated ? "Trade logged: " : "Trade: "}
+                          {msg.action.ticker} @ ${msg.action.entry_price}
+                        </span>
+                      </div>
+                    )}
+                    {msg.action?.type === "close_trade" && msg.action.ticker && (
+                      <div className="px-4 pb-3">
+                        <span className={clsx(
+                          "inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1",
+                          msg.actionCreated
+                            ? "bg-brand-light text-brand border border-brand-border"
+                            : "bg-slate-100 text-slate-500 border border-slate-200"
+                        )}>
+                          <Check size={11} />
+                          {msg.actionCreated ? "Exit logged: " : "Exit: "}
+                          {msg.action.ticker} @ ${msg.action.exit_price}
                         </span>
                       </div>
                     )}

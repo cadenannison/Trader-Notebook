@@ -10,6 +10,7 @@ export const MOCK_TRIGGERS: PriceTrigger[] = [
     auto_disarm: true,
     cooldown_hours: 4,
     last_triggered_at: null,
+    watchlist_entry_id: null,
   },
   {
     id: "trigger-2",
@@ -20,6 +21,7 @@ export const MOCK_TRIGGERS: PriceTrigger[] = [
     auto_disarm: true,
     cooldown_hours: 4,
     last_triggered_at: "2026-04-28T11:00:00Z",
+    watchlist_entry_id: null,
   },
   {
     id: "trigger-3",
@@ -30,5 +32,6 @@ export const MOCK_TRIGGERS: PriceTrigger[] = [
     auto_disarm: false,
     cooldown_hours: 8,
     last_triggered_at: null,
+    watchlist_entry_id: null,
   },
 ];

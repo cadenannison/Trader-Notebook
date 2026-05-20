@@ -158,7 +158,7 @@ function TradeCard({ trade }: { trade: Trade }) {
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{trade.note}</p>
+          <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{trade.pre_trade_notes}</p>
         </div>
         {trade.return_pct != null && (
           <span

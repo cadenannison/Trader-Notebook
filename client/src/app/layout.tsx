@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 
+import { AppShell } from "@/components/AppShell";
+import { AuthGuard } from "@/components/AuthGuard";
 import { Providers } from "@/components/Providers";
-import { Sidebar } from "@/components/Sidebar";
 
 import "./globals.css";
 
@@ -18,8 +19,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className={`${inter.className} bg-app-bg text-slate-900 min-h-screen`}>
         <Providers>
-          <Sidebar />
-          <main className="ml-[220px] min-h-screen">{children}</main>
+          <AuthGuard>
+            <AppShell>{children}</AppShell>
+          </AuthGuard>
         </Providers>
       </body>
     </html>
