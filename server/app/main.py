@@ -6,7 +6,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from app.api import briefing, chat, journal_notes, news, notes, portfolios, stock, trades, triggers, user, watchlist
+from app.api import auth_lookup, briefing, chat, journal_notes, news, notes, portfolios, stock, trades, triggers, user, watchlist
 from app.config import settings
 
 limiter = Limiter(key_func=get_remote_address)
@@ -25,6 +25,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+app.include_router(auth_lookup.router, prefix="/api")
 app.include_router(stock.router, prefix="/api")
 app.include_router(notes.router, prefix="/api")
 app.include_router(triggers.router, prefix="/api")

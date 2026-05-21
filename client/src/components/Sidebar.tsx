@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -12,6 +13,7 @@ import {
   Newspaper,
   Settings,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 const mainNav = [
   { href: "/", label: "Chat", icon: MessageSquare },
@@ -60,6 +62,18 @@ function NavItem({
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [displayName, setDisplayName] = useState<string>("");
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) return;
+      const name =
+        data.user.user_metadata?.username ||
+        data.user.email?.split("@")[0] ||
+        "";
+      setDisplayName(name);
+    });
+  }, []);
 
   return (
     <aside className="fixed top-0 left-0 h-screen w-[220px] bg-white border-r border-brand-subtle flex flex-col z-20">
@@ -86,8 +100,13 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Bottom: Settings */}
-      <div className="px-3 py-4 border-t border-brand-subtle">
+      {/* Bottom: user + Settings */}
+      <div className="px-3 py-4 border-t border-brand-subtle space-y-1">
+        {displayName && (
+          <div className="px-3 py-1.5 mb-1">
+            <p className="text-xs font-semibold text-slate-700 truncate">@{displayName}</p>
+          </div>
+        )}
         <NavItem
           href="/settings"
           label="Settings"
