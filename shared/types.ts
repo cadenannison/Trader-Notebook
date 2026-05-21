@@ -22,6 +22,16 @@ export interface PriceTrigger {
   cooldown_hours: number;
   last_triggered_at: string | null;
   watchlist_entry_id: string | null;
+  notes: string | null;
+  portfolio_id: string | null;
+}
+
+export interface Portfolio {
+  id: string;
+  name: string;
+  thesis: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // ── Watchlist ─────────────────────────────────────────────────────────────────
@@ -96,6 +106,17 @@ export interface NewsArticle {
   source: string;
   published_at: string;
   sentiment: "bullish" | "bearish" | "neutral";
+}
+
+// ── Journal notes ─────────────────────────────────────────────────────────────
+
+export interface JournalNote {
+  id: string;
+  title: string | null;
+  content: string;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
 }
 
 // ── Alerts ────────────────────────────────────────────────────────────────────

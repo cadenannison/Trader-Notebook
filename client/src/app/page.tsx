@@ -8,10 +8,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import api from "@/lib/api";
-import { useCreateTrigger } from "@/hooks/useTriggers";
-import { useCreateWatchlistEntry } from "@/hooks/useWatchlist";
-import { useCreateTrade, useCloseTrade } from "@/hooks/useTrades";
+import { useCreateTrigger, useDeleteTrigger, useTriggers, useUpdateTrigger } from "@/hooks/useTriggers";
+import { useCreateWatchlistEntry, useDeleteWatchlistEntry } from "@/hooks/useWatchlist";
+import { useCreateTrade, useDeleteTrade, useCloseTrade } from "@/hooks/useTrades";
+import { useCreatePortfolio, useDeletePortfolio, usePortfolios } from "@/hooks/usePortfolios";
+import { useCreateJournalNote, useDeleteJournalNote } from "@/hooks/useJournalNotes";
 import { useAppStore, type ChatAction, type ChatMessage } from "@/store/appStore";
+import { useUndoStore } from "@/store/undoStore";
 import type { IdeaSource, TimeHorizon, ConfidenceTag, ExitReason } from "@shared/types";
 
 const HINTS = [
@@ -35,6 +38,18 @@ export default function ChatPage() {
   const { mutateAsync: createWatchlistEntry } = useCreateWatchlistEntry();
   const { mutateAsync: createTrade } = useCreateTrade();
   const { mutateAsync: closeTrade } = useCloseTrade();
+  const { mutateAsync: createPortfolio } = useCreatePortfolio();
+  const { mutate: updateTrigger } = useUpdateTrigger();
+  const { mutate: deleteTriggerMutation } = useDeleteTrigger();
+  const { mutateAsync: deleteTriggerAsync } = useDeleteTrigger();
+  const { data: triggers = [] } = useTriggers();
+  const { data: portfolios = [] } = usePortfolios();
+  const { mutateAsync: deletePortfolio } = useDeletePortfolio();
+  const { mutateAsync: createJournalNote } = useCreateJournalNote();
+  const { mutateAsync: deleteJournalNote } = useDeleteJournalNote();
+  const { mutateAsync: deleteWatchlistEntry } = useDeleteWatchlistEntry();
+  const { mutateAsync: deleteTrade } = useDeleteTrade();
+  const { push: pushUndo } = useUndoStore();
 
   const { chatMessages: messages, addChatMessage, updateChatMessage } = useAppStore();
   const [input, setInput] = useState("");
@@ -75,104 +90,241 @@ export default function ChatPage() {
     const aiId = (Date.now() + 1).toString();
 
     try {
-      const { data } = await api.post<{ message: string; action: ChatAction | null }>("/api/chat", {
+      const { data } = await api.post<{ message: string; actions?: ChatAction[]; action?: ChatAction | null }>("/api/chat", {
         message: text,
         history,
       });
+
+      // Normalise: new "actions" array takes precedence, fall back to legacy "action"
+      const actionList: ChatAction[] = data.actions?.length
+        ? data.actions
+        : data.action
+        ? [data.action]
+        : [];
 
       const aiMsg: ChatMessage = {
         id: aiId,
         role: "ai",
         text: data.message,
-        action: data.action,
+        actions: actionList,
+        actionsCreated: actionList.map(() => false),
       };
       addChatMessage(aiMsg);
 
-      if (data.action?.type === "show_view" && data.action.view) {
-        const path = VIEW_PATHS[data.action.view];
-        if (path) setTimeout(() => router.push(path), 900);
-      }
+      // Track portfolios created in this batch so later actions can reference them
+      // even before the query cache refreshes.
+      const newPortfolioIds: Record<string, string> = {};
 
-      if (
-        data.action?.type === "add_alert" &&
-        data.action.ticker &&
-        data.action.price &&
-        data.action.condition
-      ) {
-        try {
-          await createTrigger({
-            ticker: data.action.ticker,
-            target_price: data.action.price,
-            condition: data.action.condition as "above" | "below",
-            auto_disarm: true,
-            cooldown_hours: 4,
+      const resolvePortfolioId = (name: string): string | null => {
+        const lower = name.toLowerCase();
+        return (
+          newPortfolioIds[lower] ??
+          portfolios.find((p) => p.name.toLowerCase() === lower)?.id ??
+          null
+        );
+      };
+
+      for (let i = 0; i < actionList.length; i++) {
+        const act = actionList[i];
+        const markCreated = () =>
+          updateChatMessage(aiId, {
+            actionsCreated: actionList.map((_, j) => j <= i),
           });
-          updateChatMessage(aiId, { actionCreated: true });
-        } catch {
-          // silent — user can add manually via Alerts
-        }
-      }
 
-      if (
-        data.action?.type === "log_idea" &&
-        data.action.ticker &&
-        data.action.reasoning
-      ) {
         try {
-          await createWatchlistEntry({
-            ticker: data.action.ticker,
-            reasoning: data.action.reasoning,
-            idea_source: (data.action.idea_source as IdeaSource) ?? "own_research",
-            time_horizon: (data.action.time_horizon as TimeHorizon) ?? "swing",
-            entry_price: data.action.entry_price ?? null,
-            target_price: data.action.target_price ?? null,
-            stop_price: data.action.stop_price ?? null,
-          });
-          updateChatMessage(aiId, { actionCreated: true });
-        } catch {
-          // silent
-        }
-      }
+          if (act.type === "show_view" && act.view) {
+            const path = VIEW_PATHS[act.view];
+            if (path) setTimeout(() => router.push(path), 900);
 
-      if (
-        data.action?.type === "log_trade" &&
-        data.action.ticker &&
-        data.action.entry_price
-      ) {
-        try {
-          await createTrade({
-            ticker: data.action.ticker,
-            entry_price: data.action.entry_price,
-            time_horizon: (data.action.time_horizon as TimeHorizon) ?? "swing",
-            confidence_tag: (data.action.confidence_tag as ConfidenceTag) ?? "neutral",
-            cost_basis: data.action.cost_basis ?? null,
-            shares: data.action.shares ?? null,
-            watchlist_entry_id: data.action.watchlist_entry_id ?? null,
-          });
-          updateChatMessage(aiId, { actionCreated: true });
-        } catch {
-          // silent
-        }
-      }
-
-      if (
-        data.action?.type === "close_trade" &&
-        data.action.exit_price &&
-        data.action.exit_reason
-      ) {
-        // close_trade requires a trade_id — if Gemini returns one use it,
-        // otherwise the user will need to close from the Notebook tab
-        if (data.action.trade_id) {
-          try {
-            await closeTrade({
-              id: data.action.trade_id,
-              exit_price: data.action.exit_price,
-              exit_reason: data.action.exit_reason as ExitReason,
+          } else if (act.type === "add_alert" && act.ticker && act.price && act.condition) {
+            const portfolioId = act.portfolio_name ? resolvePortfolioId(act.portfolio_name) : null;
+            const createdTrigger = await createTrigger({
+              ticker: act.ticker,
+              target_price: act.price,
+              condition: act.condition as "above" | "below",
+              auto_disarm: true,
+              cooldown_hours: 4,
+              notes: act.note ?? null,
+              portfolio_id: portfolioId,
             });
-            updateChatMessage(aiId, { actionCreated: true });
-          } catch {
-            // silent
+            const snapAct = { ...act };
+            const snapPortfolioId = portfolioId;
+            const triggerIds = { current: createdTrigger.id };
+            pushUndo({
+              label: `Alert set: ${act.ticker} ${act.condition} $${act.price}`,
+              undo: async () => { await deleteTriggerAsync(triggerIds.current); },
+              redo: async () => {
+                const t = await createTrigger({
+                  ticker: snapAct.ticker!,
+                  target_price: snapAct.price!,
+                  condition: snapAct.condition as "above" | "below",
+                  auto_disarm: true,
+                  cooldown_hours: 4,
+                  notes: snapAct.note ?? null,
+                  portfolio_id: snapPortfolioId,
+                });
+                triggerIds.current = t.id;
+              },
+            });
+            markCreated();
+
+          } else if (act.type === "log_idea" && act.ticker && act.reasoning) {
+            const entry = await createWatchlistEntry({
+              ticker: act.ticker,
+              reasoning: act.reasoning,
+              idea_source: (act.idea_source as IdeaSource) ?? "own_research",
+              time_horizon: (act.time_horizon as TimeHorizon) ?? "swing",
+              entry_price: act.entry_price ?? null,
+              target_price: act.target_price ?? null,
+              stop_price: act.stop_price ?? null,
+            });
+            const snapAct = { ...act };
+            const entryIds = { current: entry.id };
+            pushUndo({
+              label: `Watchlist: ${act.ticker}`,
+              undo: async () => { await deleteWatchlistEntry(entryIds.current); },
+              redo: async () => {
+                const e = await createWatchlistEntry({
+                  ticker: snapAct.ticker!,
+                  reasoning: snapAct.reasoning!,
+                  idea_source: (snapAct.idea_source as IdeaSource) ?? "own_research",
+                  time_horizon: (snapAct.time_horizon as TimeHorizon) ?? "swing",
+                  entry_price: snapAct.entry_price ?? null,
+                  target_price: snapAct.target_price ?? null,
+                  stop_price: snapAct.stop_price ?? null,
+                });
+                entryIds.current = e.id;
+              },
+            });
+            markCreated();
+
+          } else if (act.type === "log_trade" && act.ticker && act.entry_price) {
+            const trade = await createTrade({
+              ticker: act.ticker,
+              entry_price: act.entry_price,
+              time_horizon: (act.time_horizon as TimeHorizon) ?? "swing",
+              confidence_tag: (act.confidence_tag as ConfidenceTag) ?? "neutral",
+              cost_basis: act.cost_basis ?? null,
+              shares: act.shares ?? null,
+              watchlist_entry_id: act.watchlist_entry_id ?? null,
+            });
+            const snapAct = { ...act };
+            const tradeIds = { current: trade.id };
+            pushUndo({
+              label: `Trade logged: ${act.ticker} @ $${act.entry_price}`,
+              undo: async () => { await deleteTrade(tradeIds.current); },
+              redo: async () => {
+                const tr = await createTrade({
+                  ticker: snapAct.ticker!,
+                  entry_price: snapAct.entry_price!,
+                  time_horizon: (snapAct.time_horizon as TimeHorizon) ?? "swing",
+                  confidence_tag: (snapAct.confidence_tag as ConfidenceTag) ?? "neutral",
+                  cost_basis: snapAct.cost_basis ?? null,
+                  shares: snapAct.shares ?? null,
+                });
+                tradeIds.current = tr.id;
+              },
+            });
+            markCreated();
+
+          } else if (act.type === "close_trade" && act.exit_price && act.exit_reason && act.trade_id) {
+            await closeTrade({
+              id: act.trade_id,
+              exit_price: act.exit_price,
+              exit_reason: act.exit_reason as ExitReason,
+            });
+            markCreated();
+
+          } else if (act.type === "create_portfolio" && act.name) {
+            const portfolio = await createPortfolio({ name: act.name, thesis: act.thesis });
+            newPortfolioIds[act.name.toLowerCase()] = portfolio.id;
+            if (act.tickers?.length) {
+              for (const ticker of act.tickers) {
+                for (const t of triggers.filter((t) => t.ticker === ticker.toUpperCase())) {
+                  updateTrigger({ id: t.id, portfolio_id: portfolio.id });
+                }
+              }
+            }
+            const snapAct = { ...act };
+            const portfolioIds = { current: portfolio.id };
+            pushUndo({
+              label: `Portfolio created: ${act.name}`,
+              undo: async () => { await deletePortfolio(portfolioIds.current); },
+              redo: async () => {
+                const p = await createPortfolio({ name: snapAct.name!, thesis: snapAct.thesis });
+                portfolioIds.current = p.id;
+              },
+            });
+            markCreated();
+
+          } else if (act.type === "assign_to_portfolio" && act.portfolio_name && act.tickers?.length) {
+            const portfolioId = resolvePortfolioId(act.portfolio_name);
+            if (portfolioId) {
+              for (const ticker of act.tickers) {
+                for (const t of triggers.filter((t) => t.ticker === ticker.toUpperCase())) {
+                  updateTrigger({ id: t.id, portfolio_id: portfolioId });
+                }
+              }
+              markCreated();
+            }
+
+          } else if (act.type === "add_journal_note" && act.content) {
+            const note = await createJournalNote({
+              content: act.content,
+              title: act.title ?? undefined,
+              tags: act.tags ?? [],
+            });
+            const snapAct = { ...act };
+            const noteIds = { current: note.id };
+            pushUndo({
+              label: `Note saved${act.title ? `: ${act.title}` : ""}`,
+              undo: async () => { await deleteJournalNote(noteIds.current); },
+              redo: async () => {
+                const n = await createJournalNote({
+                  content: snapAct.content!,
+                  title: snapAct.title ?? undefined,
+                  tags: snapAct.tags ?? [],
+                });
+                noteIds.current = n.id;
+              },
+            });
+            markCreated();
+
+          } else if (act.type === "update_alert" && act.ticker) {
+            // Find the best matching active trigger: prefer old_price match, fall back to most recent
+            const candidates = triggers.filter(
+              (t) => t.ticker === act.ticker!.toUpperCase() && t.is_active
+            );
+            const target = act.old_price
+              ? (candidates.find((t) => t.target_price === act.old_price) ?? candidates[0])
+              : candidates[0];
+            if (target) {
+              const updates: Record<string, unknown> = {};
+              if (act.new_price != null) updates.target_price = act.new_price;
+              if (act.new_condition) updates.condition = act.new_condition;
+              if (act.new_note != null) updates.notes = act.new_note;
+              if (Object.keys(updates).length) {
+                updateTrigger({ id: target.id, ...updates });
+                markCreated();
+              }
+            }
+
+          } else if (act.type === "delete_alert" && act.ticker) {
+            const upperTicker = act.ticker.toUpperCase();
+            const toDelete = act.price != null
+              ? triggers.filter(
+                  (t) => t.ticker === upperTicker &&
+                    t.target_price === act.price &&
+                    (!act.condition || t.condition === act.condition)
+                )
+              : triggers.filter((t) => t.ticker === upperTicker);
+            for (const t of toDelete) {
+              deleteTriggerMutation(t.id);
+            }
+            if (toDelete.length) markCreated();
           }
+        } catch {
+          // individual action failure is silent — user can fix manually
         }
       }
     } catch (err: unknown) {
@@ -246,62 +398,40 @@ export default function ChatPage() {
                 ) : (
                   <div className="max-w-[80%] bg-white border border-brand-subtle rounded-2xl rounded-bl-sm shadow-sm overflow-hidden">
                     <p className="px-4 py-2.5 text-sm leading-relaxed text-slate-800">{msg.text}</p>
-                    {msg.action?.type === "add_alert" && msg.action.ticker && (
-                      <div className="px-4 pb-3">
-                        <span className={clsx(
-                          "inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1",
-                          msg.actionCreated
-                            ? "bg-brand-light text-brand border border-brand-border"
-                            : "bg-slate-100 text-slate-500 border border-slate-200"
-                        )}>
-                          <Check size={11} />
-                          {msg.actionCreated ? "Alert set: " : "Alert: "}
-                          {msg.action.ticker} {msg.action.condition} ${msg.action.price}
-                        </span>
-                      </div>
-                    )}
-                    {msg.action?.type === "log_idea" && msg.action.ticker && (
-                      <div className="px-4 pb-3">
-                        <span className={clsx(
-                          "inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1",
-                          msg.actionCreated
-                            ? "bg-brand-light text-brand border border-brand-border"
-                            : "bg-slate-100 text-slate-500 border border-slate-200"
-                        )}>
-                          <Check size={11} />
-                          {msg.actionCreated ? "Added to watchlist: " : "Watchlist: "}
-                          {msg.action.ticker}
-                        </span>
-                      </div>
-                    )}
-                    {msg.action?.type === "log_trade" && msg.action.ticker && (
-                      <div className="px-4 pb-3">
-                        <span className={clsx(
-                          "inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1",
-                          msg.actionCreated
-                            ? "bg-brand-light text-brand border border-brand-border"
-                            : "bg-slate-100 text-slate-500 border border-slate-200"
-                        )}>
-                          <Check size={11} />
-                          {msg.actionCreated ? "Trade logged: " : "Trade: "}
-                          {msg.action.ticker} @ ${msg.action.entry_price}
-                        </span>
-                      </div>
-                    )}
-                    {msg.action?.type === "close_trade" && msg.action.ticker && (
-                      <div className="px-4 pb-3">
-                        <span className={clsx(
-                          "inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1",
-                          msg.actionCreated
-                            ? "bg-brand-light text-brand border border-brand-border"
-                            : "bg-slate-100 text-slate-500 border border-slate-200"
-                        )}>
-                          <Check size={11} />
-                          {msg.actionCreated ? "Exit logged: " : "Exit: "}
-                          {msg.action.ticker} @ ${msg.action.exit_price}
-                        </span>
-                      </div>
-                    )}
+                    {(msg.actions ?? (msg.action ? [msg.action] : [])).map((act, i) => {
+                      const created = msg.actionsCreated?.[i] ?? msg.actionCreated ?? false;
+                      const badgeClass = clsx(
+                        "inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1",
+                        created
+                          ? "bg-brand-light text-brand border border-brand-border"
+                          : "bg-slate-100 text-slate-500 border border-slate-200"
+                      );
+                      let label: string | null = null;
+                      if (act.type === "add_alert" && act.ticker)
+                        label = `${created ? "Alert set" : "Alert"}: ${act.ticker} ${act.condition} $${act.price}`;
+                      else if (act.type === "log_idea" && act.ticker)
+                        label = `${created ? "Added to watchlist" : "Watchlist"}: ${act.ticker}`;
+                      else if (act.type === "log_trade" && act.ticker)
+                        label = `${created ? "Trade logged" : "Trade"}: ${act.ticker} @ $${act.entry_price}`;
+                      else if (act.type === "close_trade" && act.ticker)
+                        label = `${created ? "Exit logged" : "Exit"}: ${act.ticker} @ $${act.exit_price}`;
+                      else if (act.type === "create_portfolio" && act.name)
+                        label = `${created ? "Portfolio created" : "Portfolio"}: ${act.name}${act.tickers?.length ? ` · ${act.tickers.join(", ")}` : ""}`;
+                      else if (act.type === "assign_to_portfolio" && act.portfolio_name)
+                        label = `${created ? "Assigned to" : "Assign to"}: ${act.portfolio_name}${act.tickers?.length ? ` · ${act.tickers.join(", ")}` : ""}`;
+                      else if (act.type === "add_journal_note" && act.content)
+                        label = `${created ? "Note saved" : "Note"}${act.title ? `: ${act.title}` : ""}`;
+                      else if (act.type === "update_alert" && act.ticker)
+                        label = `${created ? "Alert updated" : "Update alert"}: ${act.ticker}${act.new_price != null ? ` → $${act.new_price}` : ""}${act.new_condition ? ` ${act.new_condition}` : ""}`;
+                      else if (act.type === "delete_alert" && act.ticker)
+                        label = `${created ? "Alert deleted" : "Delete alert"}: ${act.ticker}${act.price != null ? ` $${act.price}` : " (all)"}`;
+                      if (!label) return null;
+                      return (
+                        <div key={i} className="px-4 pb-3">
+                          <span className={badgeClass}><Check size={11} />{label}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

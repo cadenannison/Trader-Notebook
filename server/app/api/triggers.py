@@ -39,6 +39,17 @@ class CreateTriggerRequest(BaseModel):
     condition: str
     auto_disarm: bool = True
     cooldown_hours: int = 4
+    notes: Optional[str] = None
+    portfolio_id: Optional[str] = None
+
+
+class UpdateTriggerRequest(BaseModel):
+    target_price: Optional[float] = None
+    condition: Optional[str] = None
+    auto_disarm: Optional[bool] = None
+    cooldown_hours: Optional[int] = None
+    notes: Optional[str] = None
+    portfolio_id: Optional[str] = None
 
 
 @router.get("/triggers")
@@ -67,6 +78,7 @@ async def create_trigger(body: CreateTriggerRequest, user_id: str = Depends(get_
         "target_price": body.target_price, "condition": body.condition,
         "is_active": True, "auto_disarm": body.auto_disarm,
         "cooldown_hours": body.cooldown_hours, "last_triggered_at": None, "created_at": now,
+        "notes": body.notes, "portfolio_id": body.portfolio_id,
     }
     if sb:
         return sb.table("triggers").insert(row).execute().data[0]
@@ -110,3 +122,36 @@ async def delete_trigger(trigger_id: str, user_id: str = Depends(get_current_use
                       if not (t["id"] == trigger_id and t["user_id"] == user_id)]
     if len(_mock_triggers) == before:
         raise HTTPException(status_code=404, detail="Trigger not found")
+
+
+@router.put("/triggers/{trigger_id}")
+async def update_trigger(
+    trigger_id: str,
+    body: UpdateTriggerRequest,
+    user_id: str = Depends(get_current_user),
+):
+    if body.condition is not None and body.condition not in ("above", "below"):
+        raise HTTPException(status_code=400, detail="condition must be 'above' or 'below'")
+
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    sb = _get_sb()
+    if sb:
+        result = (
+            sb.table("triggers")
+            .update(updates)
+            .eq("id", trigger_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Trigger not found")
+        return result.data[0]
+
+    for t in _mock_triggers:
+        if t["id"] == trigger_id and t["user_id"] == user_id:
+            t.update(updates)
+            return t
+    raise HTTPException(status_code=404, detail="Trigger not found")

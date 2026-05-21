@@ -36,6 +36,17 @@ class CloseTradeRequest(BaseModel):
     exit_reason: str
 
 
+class UpdateTradeRequest(BaseModel):
+    entry_price: Optional[float] = None
+    time_horizon: Optional[str] = None
+    confidence_tag: Optional[str] = None
+    shares: Optional[float] = None
+    cost_basis: Optional[float] = None
+    pre_trade_notes: Optional[str] = None
+    exit_price: Optional[float] = None
+    exit_reason: Optional[str] = None
+
+
 _VALID_CONFIDENCE = {"confident", "neutral", "uncertain", "fomo"}
 _VALID_HORIZONS = {"intraday", "swing", "position"}
 _VALID_EXIT_REASONS = {
@@ -196,3 +207,92 @@ async def close_trade(
             })
             return trade
     raise HTTPException(status_code=404, detail="Trade not found")
+
+
+@router.put("/trades/{trade_id}")
+async def update_trade(
+    trade_id: str,
+    body: UpdateTradeRequest,
+    user_id: str = Depends(get_current_user),
+):
+    if body.confidence_tag is not None and body.confidence_tag not in _VALID_CONFIDENCE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"confidence_tag must be one of: {', '.join(sorted(_VALID_CONFIDENCE))}",
+        )
+    if body.time_horizon is not None and body.time_horizon not in _VALID_HORIZONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"time_horizon must be one of: {', '.join(sorted(_VALID_HORIZONS))}",
+        )
+    if body.exit_reason is not None and body.exit_reason not in _VALID_EXIT_REASONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"exit_reason must be one of: {', '.join(sorted(_VALID_EXIT_REASONS))}",
+        )
+
+    updates: dict = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    sb = _get_sb()
+    if sb:
+        existing = (
+            sb.table("trades")
+            .select("entry_price, exit_price, status")
+            .eq("id", trade_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if not existing.data:
+            raise HTTPException(status_code=404, detail="Trade not found")
+
+        row = existing.data[0]
+        if row["status"] == "closed":
+            new_entry = updates.get("entry_price", row["entry_price"])
+            new_exit = updates.get("exit_price", row["exit_price"])
+            if new_exit is not None:
+                updates["return_pct"] = round(
+                    (new_exit - new_entry) / new_entry * 100, 4
+                )
+
+        result = (
+            sb.table("trades")
+            .update(updates)
+            .eq("id", trade_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        return result.data[0]
+
+    for trade in _mock_trades:
+        if trade["id"] == trade_id and trade["user_id"] == user_id:
+            trade.update(updates)
+            if trade["status"] == "closed" and trade.get("exit_price") and trade.get("entry_price"):
+                trade["return_pct"] = round(
+                    (trade["exit_price"] - trade["entry_price"]) / trade["entry_price"] * 100, 4
+                )
+            return trade
+    raise HTTPException(status_code=404, detail="Trade not found")
+
+
+@router.delete("/trades/{trade_id}", status_code=204)
+async def delete_trade(trade_id: str, user_id: str = Depends(get_current_user)):
+    global _mock_trades
+    sb = _get_sb()
+    if sb:
+        result = (
+            sb.table("trades")
+            .delete()
+            .eq("id", trade_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Trade not found")
+        return
+
+    before = len(_mock_trades)
+    _mock_trades = [t for t in _mock_trades if not (t["id"] == trade_id and t["user_id"] == user_id)]
+    if len(_mock_trades) == before:
+        raise HTTPException(status_code=404, detail="Trade not found")

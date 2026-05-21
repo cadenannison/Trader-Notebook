@@ -25,6 +25,8 @@ export function useCreateTrigger() {
       condition: "above" | "below";
       auto_disarm: boolean;
       cooldown_hours: number;
+      notes?: string | null;
+      portfolio_id?: string | null;
     }): Promise<PriceTrigger> => {
       const res = await api.post("/api/triggers", data);
       return res.data;
@@ -40,6 +42,30 @@ export function useRearmTrigger() {
   return useMutation({
     mutationFn: async (triggerId: string): Promise<PriceTrigger> => {
       const res = await api.put(`/api/triggers/${triggerId}/rearm`);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["triggers"] });
+    },
+  });
+}
+
+export function useUpdateTrigger() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...data
+    }: {
+      id: string;
+      target_price?: number;
+      condition?: "above" | "below";
+      auto_disarm?: boolean;
+      cooldown_hours?: number;
+      notes?: string | null;
+      portfolio_id?: string | null;
+    }): Promise<PriceTrigger> => {
+      const res = await api.put(`/api/triggers/${id}`, data);
       return res.data;
     },
     onSuccess: () => {

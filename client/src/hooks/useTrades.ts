@@ -64,6 +64,44 @@ export function useCloseTrade() {
   });
 }
 
+export function useDeleteTrade() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (tradeId: string): Promise<void> => {
+      await api.delete(`/api/trades/${tradeId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["trades"] });
+    },
+  });
+}
+
+export function useUpdateTrade() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...data
+    }: {
+      id: string;
+      entry_price?: number;
+      time_horizon?: TimeHorizon;
+      confidence_tag?: ConfidenceTag;
+      shares?: number | null;
+      cost_basis?: number | null;
+      pre_trade_notes?: string | null;
+      exit_price?: number;
+      exit_reason?: ExitReason;
+    }): Promise<Trade> => {
+      const res = await api.put(`/api/trades/${id}`, data);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["trades"] });
+    },
+  });
+}
+
 export const EXIT_REASON_LABELS: Record<ExitReason, string> = {
   hit_target: "Hit target",
   hit_stop_loss: "Hit stop loss",
