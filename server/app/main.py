@@ -1,5 +1,3 @@
-import re
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -15,11 +13,16 @@ app = FastAPI(title="tradrNotebook API", version="0.1.0")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-_ORIGIN_RE = re.compile(r"^https?://localhost(:\d+)?$")
+def _build_cors_origins() -> list[str]:
+    origins = []
+    if settings.client_url:
+        origins.append(settings.client_url.rstrip("/"))
+    return origins
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https?://localhost(:\d+)?",
+    allow_origins=_build_cors_origins(),
+    allow_origin_regex=r"https?://localhost(:\d+)?|https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
