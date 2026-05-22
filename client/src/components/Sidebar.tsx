@@ -14,6 +14,7 @@ import {
   Settings,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useAppStore } from "@/store/appStore";
 
 const mainNav = [
   { href: "/", label: "Chat", icon: MessageSquare },
@@ -63,6 +64,7 @@ function NavItem({
 export function Sidebar() {
   const pathname = usePathname();
   const [displayName, setDisplayName] = useState<string>("");
+  const backendWarming = useAppStore((s) => s.backendWarming);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -86,6 +88,18 @@ export function Sidebar() {
           </span>
         </Link>
       </div>
+
+      {/* Warming banner */}
+      {backendWarming && (
+        <div className="mx-3 mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+            <p className="text-xs text-amber-700 font-medium leading-snug">
+              Warming up. Please wait…
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Main nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">

@@ -58,6 +58,9 @@ interface AppState {
   maintenanceMode: boolean;
   setMaintenanceMode: (value: boolean) => void;
 
+  backendWarming: boolean;
+  setBackendWarming: (value: boolean) => void;
+
   chatMessages: ChatMessage[];
   addChatMessage: (msg: ChatMessage) => void;
   updateChatMessage: (id: string, updates: Partial<ChatMessage>) => void;
@@ -69,6 +72,9 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       maintenanceMode: false,
       setMaintenanceMode: (value) => set({ maintenanceMode: value }),
+
+      backendWarming: false,
+      setBackendWarming: (value) => set({ backendWarming: value }),
 
       chatMessages: [],
       addChatMessage: (msg) => set((s) => ({ chatMessages: [...s.chatMessages, msg] })),
