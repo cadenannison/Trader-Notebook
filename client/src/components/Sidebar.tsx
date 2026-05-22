@@ -9,6 +9,7 @@ import {
   BarChart2,
   Bell,
   BookOpen,
+  Eye,
   MessageSquare,
   Newspaper,
   Settings,
@@ -18,6 +19,7 @@ import { supabase } from "@/lib/supabase";
 const mainNav = [
   { href: "/", label: "Chat", icon: MessageSquare },
   { href: "/notebook", label: "Notebook", icon: BookOpen },
+  { href: "/watchlist", label: "Watchlist", icon: Eye },
   { href: "/alerts", label: "Alerts", icon: Bell },
   { href: "/news", label: "News", icon: Newspaper },
   { href: "/stats", label: "Stats", icon: BarChart2 },
