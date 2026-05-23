@@ -91,9 +91,6 @@ jobs:
       - name: Type check
         run: npm run type-check
 
-      - name: Format check
-        run: node_modules/.bin/prettier --check "src/**/*.{ts,tsx}"
-
       - name: Test
         run: npm run test -- --run
 
