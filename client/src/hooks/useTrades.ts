@@ -3,9 +3,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import api from "@/lib/api";
-import type { ConfidenceTag, ExitReason, TimeHorizon, Trade } from "@shared/types";
+import type {
+  ConfidenceTag,
+  ExitReason,
+  TimeHorizon,
+  Trade,
+} from "@shared/types";
 
-export function useTrades(opts?: { ticker?: string; status?: "open" | "closed" }) {
+export function useTrades(opts?: {
+  ticker?: string;
+  status?: "open" | "closed";
+}) {
   const params: Record<string, string> = {};
   if (opts?.ticker) params.ticker = opts.ticker;
   if (opts?.status) params.status = opts.status;
@@ -54,7 +62,10 @@ export function useCloseTrade() {
       exit_price: number;
       exit_reason: ExitReason;
     }): Promise<Trade> => {
-      const res = await api.put(`/api/trades/${id}/close`, { exit_price, exit_reason });
+      const res = await api.put(`/api/trades/${id}/close`, {
+        exit_price,
+        exit_reason,
+      });
       return res.data;
     },
     onSuccess: () => {

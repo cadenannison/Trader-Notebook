@@ -14,10 +14,16 @@ export const metadata: Metadata = {
   description: "AI-augmented trading journal",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-app-bg text-slate-900 min-h-screen`}>
+      <body
+        className={`${inter.className} bg-app-bg text-slate-900 min-h-screen`}
+      >
         <Providers>
           <AuthGuard>
             <AppShell>{children}</AppShell>

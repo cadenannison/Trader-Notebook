@@ -145,34 +145,42 @@ def get_user_email(sb, user_id: str) -> str | None:
 
 def write_audit_log(sb, trigger_id: str, action: str, metadata: dict) -> None:
     try:
-        sb.table("agent_audit_logs").insert({
-            "agent_id": "insight_engine_v1",
-            "action": action,
-            "metadata": metadata,
-            "user_id": metadata.get("user_id"),
-        }).execute()
+        sb.table("agent_audit_logs").insert(
+            {
+                "agent_id": "insight_engine_v1",
+                "action": action,
+                "metadata": metadata,
+                "user_id": metadata.get("user_id"),
+            }
+        ).execute()
     except Exception as exc:
         print(f"  [audit] Failed to write log: {exc}")
 
 
 def update_trigger_post_fire(sb, trigger: dict, now: datetime) -> None:
     if trigger["auto_disarm"]:
-        sb.table("triggers").update({
-            "is_active": False,
-            "last_triggered_at": now.isoformat(),
-        }).eq("id", trigger["id"]).execute()
+        sb.table("triggers").update(
+            {
+                "is_active": False,
+                "last_triggered_at": now.isoformat(),
+            }
+        ).eq("id", trigger["id"]).execute()
     else:
-        sb.table("triggers").update({
-            "last_triggered_at": now.isoformat(),
-        }).eq("id", trigger["id"]).execute()
+        sb.table("triggers").update(
+            {
+                "last_triggered_at": now.isoformat(),
+            }
+        ).eq("id", trigger["id"]).execute()
 
 
 def record_last_run(sb, now: datetime) -> None:
     try:
-        sb.table("system_config").upsert({
-            "key": "last_run_at",
-            "value": now.isoformat(),
-        }).execute()
+        sb.table("system_config").upsert(
+            {
+                "key": "last_run_at",
+                "value": now.isoformat(),
+            }
+        ).execute()
     except Exception:
         pass
 
@@ -180,7 +188,9 @@ def record_last_run(sb, now: datetime) -> None:
 # ── Async I/O ─────────────────────────────────────────────────────────────────
 
 
-async def _fetch_one_price(client: httpx.AsyncClient, ticker: str) -> tuple[str, float | None]:
+async def _fetch_one_price(
+    client: httpx.AsyncClient, ticker: str
+) -> tuple[str, float | None]:
     if not POLYGON_API_KEY:
         return ticker, None
     try:
@@ -214,7 +224,12 @@ async def get_market_news(ticker: str) -> list[str]:
         async with httpx.AsyncClient(timeout=8.0) as client:
             r = await client.get(
                 "https://finnhub.io/api/v1/company-news",
-                params={"symbol": ticker, "from": from_date, "to": to_date, "token": FINNHUB_API_KEY},
+                params={
+                    "symbol": ticker,
+                    "from": from_date,
+                    "to": to_date,
+                    "token": FINNHUB_API_KEY,
+                },
             )
         if r.status_code != 200:
             return []
@@ -253,7 +268,9 @@ async def run_insight_agent(
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
         try:
             async with httpx.AsyncClient(timeout=20.0) as client:
-                r = await client.post(url, json=body, headers={"x-goog-api-key": GEMINI_API_KEY})
+                r = await client.post(
+                    url, json=body, headers={"x-goog-api-key": GEMINI_API_KEY}
+                )
             if r.status_code == 200:
                 return r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
         except Exception:
@@ -276,12 +293,14 @@ def send_email(user_email: str | None, ticker: str, summary: str) -> None:
         "It is not financial advice. Verify all information before making any decisions.\n\n"
         "— tradrNotebook"
     )
-    resend.Emails.send({
-        "from": RESEND_FROM,
-        "to": [user_email],
-        "subject": f"tradrNotebook: {ticker} alert triggered",
-        "text": body,
-    })
+    resend.Emails.send(
+        {
+            "from": RESEND_FROM,
+            "to": [user_email],
+            "subject": f"tradrNotebook: {ticker} alert triggered",
+            "text": body,
+        }
+    )
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -311,7 +330,9 @@ async def main() -> None:
         return
 
     tickers = list({t["ticker"] for t in triggers})
-    print(f"Checking {len(triggers)} trigger(s) across {len(tickers)} ticker(s): {', '.join(tickers)}")
+    print(
+        f"Checking {len(triggers)} trigger(s) across {len(tickers)} ticker(s): {', '.join(tickers)}"
+    )
 
     prices = await batch_fetch_prices(tickers)
     now = datetime.now(timezone.utc)
@@ -325,32 +346,43 @@ async def main() -> None:
             continue
 
         if not _is_trigger_hit(trigger, price):
-            print(f"  [{ticker}] ${price:.2f} vs ${trigger['target_price']} {trigger['condition']} — no hit.")
+            print(
+                f"  [{ticker}] ${price:.2f} vs ${trigger['target_price']} {trigger['condition']} — no hit."
+            )
             continue
 
         if _in_cooldown(trigger, now):
             print(f"  [{ticker}] Trigger {trigger['id']} in cooldown — skipping.")
             continue
 
-        print(f"  [{ticker}] TRIGGER HIT: ${price:.2f} {trigger['condition']} ${trigger['target_price']:.2f}")
+        print(
+            f"  [{ticker}] TRIGGER HIT: ${price:.2f} {trigger['condition']} ${trigger['target_price']:.2f}"
+        )
 
         notes = get_user_notes(sb, ticker, trigger["user_id"])
         news = await get_market_news(ticker)
         summary = await run_insight_agent(ticker, trigger, price, notes, news)
 
-        write_audit_log(sb, trigger["id"], "insight_generated", {
-            "ticker": ticker,
-            "price": price,
-            "trigger_id": trigger["id"],
-            "user_id": trigger["user_id"],
-        })
+        write_audit_log(
+            sb,
+            trigger["id"],
+            "insight_generated",
+            {
+                "ticker": ticker,
+                "price": price,
+                "trigger_id": trigger["id"],
+                "user_id": trigger["user_id"],
+            },
+        )
 
         user_email = get_user_email(sb, trigger["user_id"])
         send_email(user_email, ticker, summary)
         print(f"  [{ticker}] Email sent to {user_email}")
 
         update_trigger_post_fire(sb, trigger, now)
-        status = "deactivated" if trigger["auto_disarm"] else "re-armed (cooldown reset)"
+        status = (
+            "deactivated" if trigger["auto_disarm"] else "re-armed (cooldown reset)"
+        )
         print(f"  [{ticker}] Trigger {trigger['id']} {status}.")
 
     record_last_run(sb, now)

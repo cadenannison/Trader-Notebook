@@ -3,9 +3,22 @@
 import { useMemo, useState } from "react";
 
 import { clsx } from "clsx";
-import { FolderOpen, Pencil, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
+import {
+  FolderOpen,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 
-import { useCreateTrigger, useDeleteTrigger, useUpdateTrigger, useTriggers } from "@/hooks/useTriggers";
+import {
+  useCreateTrigger,
+  useDeleteTrigger,
+  useUpdateTrigger,
+  useTriggers,
+} from "@/hooks/useTriggers";
 import { usePortfolios } from "@/hooks/usePortfolios";
 import { useUndoStore } from "@/store/undoStore";
 import { MOCK_PRICES } from "@/mocks/prices";
@@ -27,13 +40,17 @@ function getSignal(triggers: PriceTrigger[], currentPrice: number): Signal {
   const proximities = triggers.map((t) => getProximityPct(t, currentPrice));
   const triggered = proximities.filter((p) => p <= 0).length;
   const near = proximities.filter((p) => p > 0 && p <= 5).length;
-  if ((triggered > 0 && near > 0) || triggered >= 2 || near >= 2) return "confluence";
+  if ((triggered > 0 && near > 0) || triggered >= 2 || near >= 2)
+    return "confluence";
   if (triggered > 0) return "triggered";
   if (near > 0) return "near";
   return "monitoring";
 }
 
-function getSmartAnalysis(triggers: PriceTrigger[], currentPrice: number): string {
+function getSmartAnalysis(
+  triggers: PriceTrigger[],
+  currentPrice: number
+): string {
   const active = triggers.filter((t) => t.is_active);
   const fired = triggers.filter((t) => !t.is_active);
   if (fired.length > 0 && active.length > 0) {
@@ -46,14 +63,35 @@ function getSmartAnalysis(triggers: PriceTrigger[], currentPrice: number): strin
     const pct = Math.abs(getProximityPct(t, currentPrice)).toFixed(1);
     return `${pct}% ${t.condition === "above" ? "below" : "above"} your $${t.target_price.toFixed(0)} ${t.condition} target`;
   });
-  return parts.length > 0 ? `Price is ${parts.join(" and ")}.` : "Monitoring price action.";
+  return parts.length > 0
+    ? `Price is ${parts.join(" and ")}.`
+    : "Monitoring price action.";
 }
 
-const SIGNAL_STYLES: Record<Signal, { border: string; badge: string; label: string }> = {
-  confluence: { border: "border-l-brand",      badge: "bg-brand-light text-brand",     label: "Confluence" },
-  triggered:  { border: "border-l-green-500",  badge: "bg-green-50 text-green-700",    label: "Triggered"  },
-  near:       { border: "border-l-amber-500",  badge: "bg-amber-50 text-amber-700",    label: "Near"       },
-  monitoring: { border: "border-l-slate-200",  badge: "bg-slate-100 text-slate-500",   label: "Monitoring" },
+const SIGNAL_STYLES: Record<
+  Signal,
+  { border: string; badge: string; label: string }
+> = {
+  confluence: {
+    border: "border-l-brand",
+    badge: "bg-brand-light text-brand",
+    label: "Confluence",
+  },
+  triggered: {
+    border: "border-l-green-500",
+    badge: "bg-green-50 text-green-700",
+    label: "Triggered",
+  },
+  near: {
+    border: "border-l-amber-500",
+    badge: "bg-amber-50 text-amber-700",
+    label: "Near",
+  },
+  monitoring: {
+    border: "border-l-slate-200",
+    badge: "bg-slate-100 text-slate-500",
+    label: "Monitoring",
+  },
 };
 
 // ─── Add / Edit alert modal ───────────────────────────────────────────────────
@@ -67,10 +105,16 @@ function AlertModal({
 }) {
   const isEdit = !!trigger;
   const [ticker, setTicker] = useState(trigger?.ticker ?? "");
-  const [targetPrice, setTargetPrice] = useState(trigger ? String(trigger.target_price) : "");
-  const [condition, setCondition] = useState<"above" | "below">(trigger?.condition ?? "above");
+  const [targetPrice, setTargetPrice] = useState(
+    trigger ? String(trigger.target_price) : ""
+  );
+  const [condition, setCondition] = useState<"above" | "below">(
+    trigger?.condition ?? "above"
+  );
   const [autoDisarm, setAutoDisarm] = useState(trigger?.auto_disarm ?? true);
-  const [cooldown, setCooldown] = useState(trigger ? String(trigger.cooldown_hours) : "4");
+  const [cooldown, setCooldown] = useState(
+    trigger ? String(trigger.cooldown_hours) : "4"
+  );
   const [notes, setNotes] = useState(trigger?.notes ?? "");
 
   const { mutate: createTrigger, isPending: creating } = useCreateTrigger();
@@ -120,7 +164,10 @@ function AlertModal({
               {isEdit ? trigger.ticker : "Add price alert"}
             </h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 transition-colors"
+          >
             <X size={18} />
           </button>
         </div>
@@ -128,7 +175,9 @@ function AlertModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isEdit && (
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Ticker</label>
+              <label className="text-xs font-semibold text-slate-600">
+                Ticker
+              </label>
               <input
                 type="text"
                 value={ticker}
@@ -142,7 +191,9 @@ function AlertModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Target price</label>
+              <label className="text-xs font-semibold text-slate-600">
+                Target price
+              </label>
               <input
                 type="number"
                 step="0.01"
@@ -155,10 +206,14 @@ function AlertModal({
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Direction</label>
+              <label className="text-xs font-semibold text-slate-600">
+                Direction
+              </label>
               <select
                 value={condition}
-                onChange={(e) => setCondition(e.target.value as "above" | "below")}
+                onChange={(e) =>
+                  setCondition(e.target.value as "above" | "below")
+                }
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand bg-white"
               >
                 <option value="above">Above</option>
@@ -169,8 +224,12 @@ function AlertModal({
 
           <div className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2.5">
             <div>
-              <p className="text-sm font-medium text-slate-700">Auto-disarm after firing</p>
-              <p className="text-[10.5px] text-slate-400">Turns off after the first hit</p>
+              <p className="text-sm font-medium text-slate-700">
+                Auto-disarm after firing
+              </p>
+              <p className="text-[10.5px] text-slate-400">
+                Turns off after the first hit
+              </p>
             </div>
             <button
               type="button"
@@ -192,7 +251,9 @@ function AlertModal({
 
           {!autoDisarm && (
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Cooldown (hours)</label>
+              <label className="text-xs font-semibold text-slate-600">
+                Cooldown (hours)
+              </label>
               <input
                 type="number"
                 min="1"
@@ -205,7 +266,10 @@ function AlertModal({
           )}
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-600">Note <span className="font-normal text-slate-400">(optional)</span></label>
+            <label className="text-xs font-semibold text-slate-600">
+              Note{" "}
+              <span className="font-normal text-slate-400">(optional)</span>
+            </label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -233,10 +297,19 @@ function AlertModal({
 function ProximityBar({ pct }: { pct: number }) {
   const fill = Math.max(0, Math.min(100, (1 - pct / 8) * 100));
   const color =
-    pct <= 0 ? "bg-green-500" : pct <= 2 ? "bg-amber-500" : pct <= 5 ? "bg-amber-400" : "bg-slate-300";
+    pct <= 0
+      ? "bg-green-500"
+      : pct <= 2
+        ? "bg-amber-500"
+        : pct <= 5
+          ? "bg-amber-400"
+          : "bg-slate-300";
   return (
     <div className="h-1 bg-slate-100 rounded-full overflow-hidden w-24 shrink-0">
-      <div className={clsx("h-full rounded-full transition-all", color)} style={{ width: `${fill}%` }} />
+      <div
+        className={clsx("h-full rounded-full transition-all", color)}
+        style={{ width: `${fill}%` }}
+      />
     </div>
   );
 }
@@ -262,7 +335,10 @@ function PortfolioAssign({
   return (
     <div className="relative">
       <button
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
         title={assigned ? `In "${assigned.name}"` : "Add to portfolio"}
         className={clsx(
           "p-1 rounded-md transition-colors",
@@ -279,20 +355,28 @@ function PortfolioAssign({
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-7 z-20 w-48 bg-white border border-slate-200 rounded-xl shadow-lg py-1 text-sm overflow-hidden">
             {portfolios.length === 0 ? (
-              <p className="px-3 py-2 text-xs text-slate-400">No portfolios yet</p>
+              <p className="px-3 py-2 text-xs text-slate-400">
+                No portfolios yet
+              </p>
             ) : (
               <>
                 {portfolios.map((p) => (
                   <button
                     key={p.id}
-                    onClick={() => assign(trigger.portfolio_id === p.id ? null : p.id)}
+                    onClick={() =>
+                      assign(trigger.portfolio_id === p.id ? null : p.id)
+                    }
                     className={clsx(
                       "w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex items-center justify-between gap-2 transition-colors",
-                      trigger.portfolio_id === p.id ? "text-brand font-semibold" : "text-slate-700"
+                      trigger.portfolio_id === p.id
+                        ? "text-brand font-semibold"
+                        : "text-slate-700"
                     )}
                   >
                     <span className="truncate">{p.name}</span>
-                    {trigger.portfolio_id === p.id && <span className="text-brand shrink-0">✓</span>}
+                    {trigger.portfolio_id === p.id && (
+                      <span className="text-brand shrink-0">✓</span>
+                    )}
                   </button>
                 ))}
                 {trigger.portfolio_id && (
@@ -346,7 +430,11 @@ function AlertRow({
       <span
         className={clsx(
           "text-[10.5px] font-semibold tabular-nums w-16 text-right shrink-0",
-          pct <= 0 ? "text-green-600" : pct <= 5 ? "text-amber-600" : "text-slate-400"
+          pct <= 0
+            ? "text-green-600"
+            : pct <= 5
+              ? "text-amber-600"
+              : "text-slate-400"
         )}
       >
         {pct <= 0 ? "Triggered" : `${pct.toFixed(1)}% away`}
@@ -399,7 +487,10 @@ function TickerGroupCard({
   const analysis = getSmartAnalysis(triggers, currentPrice);
 
   function handleDeleteAll() {
-    if (!confirmDelete) { setConfirmDelete(true); return; }
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
     onDeleteAll();
     setConfirmDelete(false);
   }
@@ -414,14 +505,24 @@ function TickerGroupCard({
       <div className="px-4 pt-4 pb-3 flex items-start justify-between gap-3">
         <div className="space-y-0.5">
           <div className="flex items-baseline gap-2">
-            <span className="text-lg font-extrabold text-slate-900 tracking-tight">{ticker}</span>
+            <span className="text-lg font-extrabold text-slate-900 tracking-tight">
+              {ticker}
+            </span>
             {priceData ? (
               <>
                 <span className="text-base font-semibold text-slate-700 tabular-nums">
                   ${priceData.price.toFixed(2)}
                 </span>
-                <span className={clsx("text-xs font-medium", priceData.change_pct >= 0 ? "text-green-600" : "text-red-500")}>
-                  {priceData.change_pct >= 0 ? "+" : ""}{priceData.change_pct.toFixed(2)}%
+                <span
+                  className={clsx(
+                    "text-xs font-medium",
+                    priceData.change_pct >= 0
+                      ? "text-green-600"
+                      : "text-red-500"
+                  )}
+                >
+                  {priceData.change_pct >= 0 ? "+" : ""}
+                  {priceData.change_pct.toFixed(2)}%
                 </span>
               </>
             ) : (
@@ -433,7 +534,12 @@ function TickerGroupCard({
           </p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className={clsx("text-[10.5px] font-semibold px-2.5 py-1 rounded-full", styles.badge)}>
+          <span
+            className={clsx(
+              "text-[10.5px] font-semibold px-2.5 py-1 rounded-full",
+              styles.badge
+            )}
+          >
             {styles.label}
           </span>
           {confirmDelete ? (
@@ -470,7 +576,9 @@ function TickerGroupCard({
       </div>
 
       <div className="mx-4 mb-4 mt-3 bg-brand-light border border-brand-subtle rounded-lg px-3 py-2.5 flex items-start justify-between gap-3">
-        <p className="text-xs text-slate-600 leading-relaxed flex-1">{analysis}</p>
+        <p className="text-xs text-slate-600 leading-relaxed flex-1">
+          {analysis}
+        </p>
         <button className="text-[10.5px] font-semibold text-brand hover:text-brand-hover whitespace-nowrap shrink-0 transition-colors">
           Dig deeper →
         </button>
@@ -479,20 +587,28 @@ function TickerGroupCard({
   );
 }
 
-const SIGNAL_ORDER: Record<Signal, number> = { confluence: 0, triggered: 1, near: 2, monitoring: 3 };
+const SIGNAL_ORDER: Record<Signal, number> = {
+  confluence: 0,
+  triggered: 1,
+  near: 2,
+  monitoring: 3,
+};
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AlertsPage() {
   const { data: triggers = [], refetch } = useTriggers();
   const { data: portfolios = [] } = usePortfolios();
-  const { mutate: deleteTrigger, mutateAsync: deleteTriggerAsync } = useDeleteTrigger();
+  const { mutate: deleteTrigger, mutateAsync: deleteTriggerAsync } =
+    useDeleteTrigger();
   const { mutateAsync: createTrigger } = useCreateTrigger();
   const { push: pushUndo } = useUndoStore();
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortMode>("signal");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingTrigger, setEditingTrigger] = useState<PriceTrigger | null>(null);
+  const [editingTrigger, setEditingTrigger] = useState<PriceTrigger | null>(
+    null
+  );
 
   const groups = useMemo(() => {
     const map: Record<string, PriceTrigger[]> = {};
@@ -510,7 +626,9 @@ export default function AlertsPage() {
       if (sort === "count") return bTs.length - aTs.length;
       const aP = MOCK_PRICES[aT]?.price ?? 0;
       const bP = MOCK_PRICES[bT]?.price ?? 0;
-      return SIGNAL_ORDER[getSignal(aTs, aP)] - SIGNAL_ORDER[getSignal(bTs, bP)];
+      return (
+        SIGNAL_ORDER[getSignal(aTs, aP)] - SIGNAL_ORDER[getSignal(bTs, bP)]
+      );
     });
     return entries;
   }, [triggers, search, sort]);
@@ -519,16 +637,25 @@ export default function AlertsPage() {
     <>
       {showAddModal && <AlertModal onClose={() => setShowAddModal(false)} />}
       {editingTrigger && (
-        <AlertModal trigger={editingTrigger} onClose={() => setEditingTrigger(null)} />
+        <AlertModal
+          trigger={editingTrigger}
+          onClose={() => setEditingTrigger(null)}
+        />
       )}
 
       <div className="px-8 py-10 space-y-8">
         {/* Header */}
         <div className="flex items-end justify-between gap-4">
           <div className="space-y-1">
-            <p className="text-[10.5px] font-bold text-slate-400 uppercase tracking-[0.07em]">Execution feed</p>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Alerts</h1>
-            <p className="text-sm text-slate-500">Live proximity to every watched level.</p>
+            <p className="text-[10.5px] font-bold text-slate-400 uppercase tracking-[0.07em]">
+              Execution feed
+            </p>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+              Alerts
+            </h1>
+            <p className="text-sm text-slate-500">
+              Live proximity to every watched level.
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -551,7 +678,10 @@ export default function AlertsPage() {
         {/* Toolbar */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search
+              size={13}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
             <input
               type="text"
               value={search}
@@ -561,11 +691,13 @@ export default function AlertsPage() {
             />
           </div>
           <div className="flex items-center gap-1">
-            {([
-              { key: "alpha", label: "A–Z" },
-              { key: "signal", label: "By signal" },
-              { key: "count", label: "By count" },
-            ] as { key: SortMode; label: string }[]).map(({ key, label }) => (
+            {(
+              [
+                { key: "alpha", label: "A–Z" },
+                { key: "signal", label: "By signal" },
+                { key: "count", label: "By count" },
+              ] as { key: SortMode; label: string }[]
+            ).map(({ key, label }) => (
               <button
                 key={key}
                 onClick={() => setSort(key)}
@@ -589,9 +721,12 @@ export default function AlertsPage() {
               <span className="text-brand font-bold text-base">tN</span>
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-medium text-slate-700">No alerts yet</p>
+              <p className="text-sm font-medium text-slate-700">
+                No alerts yet
+              </p>
               <p className="text-xs text-slate-400 max-w-xs">
-                Use the chat or click <strong>Add alert</strong> to set price levels to watch.
+                Use the chat or click <strong>Add alert</strong> to set price
+                levels to watch.
               </p>
             </div>
             <button
@@ -630,7 +765,9 @@ export default function AlertsPage() {
                       });
                       ids.current = created.id;
                     },
-                    redo: async () => { await deleteTriggerAsync(ids.current); },
+                    redo: async () => {
+                      await deleteTriggerAsync(ids.current);
+                    },
                   });
                 }}
                 onDeleteAll={() => {
@@ -656,7 +793,8 @@ export default function AlertsPage() {
                       }
                     },
                     redo: async () => {
-                      for (const id of ids) await deleteTriggerAsync(id.current);
+                      for (const id of ids)
+                        await deleteTriggerAsync(id.current);
                     },
                   });
                 }}

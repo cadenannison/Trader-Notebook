@@ -53,7 +53,9 @@ export default function TickerPage() {
       {/* Triggers */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-zinc-300">Price Triggers</h2>
+          <h2 className="text-sm font-semibold text-zinc-300">
+            Price Triggers
+          </h2>
           <NewTriggerForm defaultTicker={symbol} />
         </div>
 
@@ -75,7 +77,9 @@ export default function TickerPage() {
             )}
             {firedTriggers.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs text-zinc-600 uppercase tracking-wider font-medium">Fired</p>
+                <p className="text-xs text-zinc-600 uppercase tracking-wider font-medium">
+                  Fired
+                </p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {firedTriggers.map((t) => (
                     <TriggerCard key={t.id} trigger={t} showTicker={false} />

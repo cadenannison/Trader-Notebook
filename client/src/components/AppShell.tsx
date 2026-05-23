@@ -18,8 +18,14 @@ function UndoBar() {
     function onKeyDown(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
       if (!mod) return;
-      if (e.key === "z" && !e.shiftKey) { e.preventDefault(); handleUndo(); }
-      if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); handleRedo(); }
+      if (e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+      if ((e.key === "z" && e.shiftKey) || e.key === "y") {
+        e.preventDefault();
+        handleRedo();
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -30,7 +36,11 @@ function UndoBar() {
     const frame = popUndo();
     if (!frame) return;
     setBusy(true);
-    try { await frame.undo(); } finally { setBusy(false); }
+    try {
+      await frame.undo();
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleRedo() {
@@ -38,7 +48,11 @@ function UndoBar() {
     const frame = popRedo();
     if (!frame) return;
     setBusy(true);
-    try { await frame.redo(); } finally { setBusy(false); }
+    try {
+      await frame.redo();
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (!canUndo && !canRedo) return null;

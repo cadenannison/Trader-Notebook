@@ -17,6 +17,7 @@ def _get_sb():
     if not (settings.supabase_url and settings.supabase_service_key):
         return None
     from supabase import create_client
+
     return create_client(settings.supabase_url, settings.supabase_service_key)
 
 
@@ -109,11 +110,7 @@ async def delete_portfolio(portfolio_id: str, user_id: str = Depends(get_current
     sb = _get_sb()
     if sb:
         result = (
-            sb.table("portfolios")
-            .delete()
-            .eq("id", portfolio_id)
-            .eq("user_id", user_id)
-            .execute()
+            sb.table("portfolios").delete().eq("id", portfolio_id).eq("user_id", user_id).execute()
         )
         if not result.data:
             raise HTTPException(status_code=404, detail="Portfolio not found")
@@ -121,8 +118,7 @@ async def delete_portfolio(portfolio_id: str, user_id: str = Depends(get_current
 
     before = len(_mock_portfolios)
     _mock_portfolios = [
-        p for p in _mock_portfolios
-        if not (p["id"] == portfolio_id and p["user_id"] == user_id)
+        p for p in _mock_portfolios if not (p["id"] == portfolio_id and p["user_id"] == user_id)
     ]
     if len(_mock_portfolios) == before:
         raise HTTPException(status_code=404, detail="Portfolio not found")

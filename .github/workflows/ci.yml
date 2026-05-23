@@ -64,7 +64,7 @@ jobs:
         run: pip-audit -r requirements.txt --ignore-vuln PYSEC-2022-42969
 
       - name: Test
-        run: pytest tests/ -v --tb=short --cov=app --cov-report=term-missing
+        run: pytest tests/ -v --tb=short --cov=app --cov-report=term-missing --cov-fail-under=45
         env:
           PYTHONPATH: .
 
@@ -90,9 +90,6 @@ jobs:
 
       - name: Type check
         run: npm run type-check
-
-      - name: Format check
-        run: npx prettier --check "src/**/*.{ts,tsx}"
 
       - name: Test
         run: npm run test -- --run

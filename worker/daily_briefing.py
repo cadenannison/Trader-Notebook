@@ -39,22 +39,31 @@ def _build_email(user_email: str, briefing: dict) -> str:
     insight = briefing.get("coaching_insight", "")
     tickers = briefing.get("tickers_watched", [])
 
-    near_html = "".join(
-        f"<li><strong>{n['ticker']}</strong> — {n['level_type'].replace('_', ' ')} "
-        f"${n['level']:.2f} ({n['pct_away']:.1f}% away, current ${n['current_price']:.2f})</li>"
-        for n in near
-    ) or "<li>No setups near trigger levels today.</li>"
+    near_html = (
+        "".join(
+            f"<li><strong>{n['ticker']}</strong> — {n['level_type'].replace('_', ' ')} "
+            f"${n['level']:.2f} ({n['pct_away']:.1f}% away, current ${n['current_price']:.2f})</li>"
+            for n in near
+        )
+        or "<li>No setups near trigger levels today.</li>"
+    )
 
-    earnings_html = "".join(
-        f"<li><strong>{e['ticker']}</strong> — reports {e.get('time', 'today')}</li>"
-        for e in earnings
-    ) or "<li>No earnings today for your watched tickers.</li>"
+    earnings_html = (
+        "".join(
+            f"<li><strong>{e['ticker']}</strong> — reports {e.get('time', 'today')}</li>"
+            for e in earnings
+        )
+        or "<li>No earnings today for your watched tickers.</li>"
+    )
 
-    movers_html = "".join(
-        f"<li><strong>{m['ticker']}</strong> {_fmt_pct(m['change_pct'])} "
-        f"(entry ${m['entry_price']:.2f} → ${m['current_price']:.2f})</li>"
-        for m in movers
-    ) or "<li>No significant moves overnight.</li>"
+    movers_html = (
+        "".join(
+            f"<li><strong>{m['ticker']}</strong> {_fmt_pct(m['change_pct'])} "
+            f"(entry ${m['entry_price']:.2f} → ${m['current_price']:.2f})</li>"
+            for m in movers
+        )
+        or "<li>No significant moves overnight.</li>"
+    )
 
     return f"""
 <html><body style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;color:#1e293b;">
@@ -63,24 +72,36 @@ def _build_email(user_email: str, briefing: dict) -> str:
               font-weight:800;font-size:13px;color:#1a7a4a;letter-spacing:-0.3px;">tN</div>
 </div>
 <h1 style="font-size:20px;font-weight:700;margin:16px 0 4px">Good morning</h1>
-<p style="color:#64748b;font-size:13px;margin:0 0 24px">{date_str} · Watching: {", ".join(tickers)}</p>
+<p style="color:#64748b;font-size:13px;margin:0 0 24px">{date_str} · Watching: {
+        ", ".join(tickers)
+    }</p>
 
 <h2 style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
             color:#94a3b8;margin:0 0 8px">Near Trigger</h2>
-<ul style="margin:0 0 20px;padding-left:18px;font-size:14px;line-height:1.7">{near_html}</ul>
+<ul style="margin:0 0 20px;padding-left:18px;font-size:14px;line-height:1.7">{
+        near_html
+    }</ul>
 
 <h2 style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
             color:#94a3b8;margin:0 0 8px">Earnings Today</h2>
-<ul style="margin:0 0 20px;padding-left:18px;font-size:14px;line-height:1.7">{earnings_html}</ul>
+<ul style="margin:0 0 20px;padding-left:18px;font-size:14px;line-height:1.7">{
+        earnings_html
+    }</ul>
 
 <h2 style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
             color:#94a3b8;margin:0 0 8px">Overnight Movers</h2>
-<ul style="margin:0 0 20px;padding-left:18px;font-size:14px;line-height:1.7">{movers_html}</ul>
+<ul style="margin:0 0 20px;padding-left:18px;font-size:14px;line-height:1.7">{
+        movers_html
+    }</ul>
 
-{f'''<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;margin-bottom:24px">
+{
+        f'''<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;margin-bottom:24px">
   <p style="font-size:12px;font-weight:700;color:#16a34a;margin:0 0 6px">COACHING INSIGHT</p>
   <p style="font-size:14px;line-height:1.6;margin:0;color:#1e293b">{insight}</p>
-</div>''' if insight else ''}
+</div>'''
+        if insight
+        else ""
+    }
 
 <p style="font-size:11px;color:#94a3b8;border-top:1px solid #f1f5f9;padding-top:16px;margin-top:8px">
   tradrNotebook · <a href="https://tradrnotebook.app" style="color:#1a7a4a">tradrnotebook.app</a>
@@ -122,7 +143,8 @@ async def _generate_briefing(user_id: str) -> dict:
         .eq("user_id", user_id)
         .in_("status", ["watching", "active_trade"])
         .execute()
-        .data or []
+        .data
+        or []
     )
     tickers = list({e["ticker"] for e in entries})
     if not tickers:
@@ -177,13 +199,15 @@ async def _generate_briefing(user_id: str) -> dict:
             if level and level > 0:
                 pct_away = abs(price - level) / level * 100
                 if pct_away <= 3.0:
-                    near_triggers.append({
-                        "ticker": e["ticker"],
-                        "level_type": key,
-                        "level": level,
-                        "current_price": price,
-                        "pct_away": round(pct_away, 2),
-                    })
+                    near_triggers.append(
+                        {
+                            "ticker": e["ticker"],
+                            "level_type": key,
+                            "level": level,
+                            "current_price": price,
+                            "pct_away": round(pct_away, 2),
+                        }
+                    )
 
     # Overnight movers
     open_trades = (
@@ -192,7 +216,8 @@ async def _generate_briefing(user_id: str) -> dict:
         .eq("user_id", user_id)
         .eq("status", "open")
         .execute()
-        .data or []
+        .data
+        or []
     )
     overnight_movers = []
     for t in open_trades:
@@ -200,12 +225,14 @@ async def _generate_briefing(user_id: str) -> dict:
         if price and t.get("entry_price"):
             change_pct = (price - t["entry_price"]) / t["entry_price"] * 100
             if abs(change_pct) >= 2.0:
-                overnight_movers.append({
-                    "ticker": t["ticker"],
-                    "entry_price": t["entry_price"],
-                    "current_price": price,
-                    "change_pct": round(change_pct, 2),
-                })
+                overnight_movers.append(
+                    {
+                        "ticker": t["ticker"],
+                        "entry_price": t["entry_price"],
+                        "current_price": price,
+                        "change_pct": round(change_pct, 2),
+                    }
+                )
 
     # Coaching insight
     insight = None
@@ -218,17 +245,31 @@ async def _generate_briefing(user_id: str) -> dict:
             .order("closed_at", desc=True)
             .limit(10)
             .execute()
-            .data or []
+            .data
+            or []
         )
-        trades_str = "\n".join(
-            f"- {t['ticker']}: {t['confidence_tag']}, {t['exit_reason'] or 'n/a'}, {t['return_pct']:+.1f}%"
-            for t in recent_trades
-            if t.get("return_pct") is not None
-        ) or "No recent closed trades."
+        trades_str = (
+            "\n".join(
+                f"- {t['ticker']}: {t['confidence_tag']}, {t['exit_reason'] or 'n/a'}, {t['return_pct']:+.1f}%"
+                for t in recent_trades
+                if t.get("return_pct") is not None
+            )
+            or "No recent closed trades."
+        )
 
-        near_str = ", ".join(f"{n['ticker']} ({n['pct_away']:.1f}% away)" for n in near_triggers) or "none"
+        near_str = (
+            ", ".join(
+                f"{n['ticker']} ({n['pct_away']:.1f}% away)" for n in near_triggers
+            )
+            or "none"
+        )
         earn_str = ", ".join(e["ticker"] for e in earnings) or "none"
-        movers_str = ", ".join(f"{m['ticker']} {m['change_pct']:+.1f}%" for m in overnight_movers) or "none"
+        movers_str = (
+            ", ".join(
+                f"{m['ticker']} {m['change_pct']:+.1f}%" for m in overnight_movers
+            )
+            or "none"
+        )
 
         prompt = f"""You are a trading coach. Write ONE specific coaching insight (2 sentences) for this trader's morning briefing.
 
@@ -246,12 +287,17 @@ Be specific about a pattern you see. No generic advice."""
                     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent",
                     json={
                         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                        "generationConfig": {"temperature": 0.7, "maxOutputTokens": 150},
+                        "generationConfig": {
+                            "temperature": 0.7,
+                            "maxOutputTokens": 150,
+                        },
                     },
                     headers={"x-goog-api-key": GEMINI_API_KEY},
                 )
             if r.status_code == 200:
-                insight = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                insight = r.json()["candidates"][0]["content"]["parts"][0][
+                    "text"
+                ].strip()
         except Exception:
             pass
 
@@ -265,7 +311,9 @@ Be specific about a pattern you see. No generic advice."""
 
 
 async def main() -> None:
-    print(f"[briefing] Starting daily briefing — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    print(
+        f"[briefing] Starting daily briefing — {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    )
 
     if not RESEND_API_KEY:
         print("[briefing] RESEND_API_KEY not set — skipping email delivery")
@@ -283,12 +331,14 @@ async def main() -> None:
                 continue
 
             html = _build_email(user["email"], briefing)
-            resend.Emails.send({
-                "from": RESEND_FROM,
-                "to": user["email"],
-                "subject": f"tradrNotebook — Morning Briefing {datetime.now().strftime('%b %-d')}",
-                "html": html,
-            })
+            resend.Emails.send(
+                {
+                    "from": RESEND_FROM,
+                    "to": user["email"],
+                    "subject": f"tradrNotebook — Morning Briefing {datetime.now().strftime('%b %-d')}",
+                    "html": html,
+                }
+            )
             print(f"  [briefing] Sent to {user['email']}")
         except Exception as exc:
             print(f"  [briefing] Failed for {user['email']}: {exc}")

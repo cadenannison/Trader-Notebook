@@ -4,10 +4,39 @@ import httpx
 
 from app.config import settings
 
-_BULLISH_WORDS = {"surge", "soar", "rally", "gain", "beat", "record", "strong", "growth",
-                  "upgrade", "buy", "positive", "outperform", "exceed", "momentum"}
-_BEARISH_WORDS = {"drop", "fall", "decline", "loss", "miss", "weak", "concern", "risk",
-                  "cut", "warn", "downgrade", "sell", "negative", "underperform", "disappoint"}
+_BULLISH_WORDS = {
+    "surge",
+    "soar",
+    "rally",
+    "gain",
+    "beat",
+    "record",
+    "strong",
+    "growth",
+    "upgrade",
+    "buy",
+    "positive",
+    "outperform",
+    "exceed",
+    "momentum",
+}
+_BEARISH_WORDS = {
+    "drop",
+    "fall",
+    "decline",
+    "loss",
+    "miss",
+    "weak",
+    "concern",
+    "risk",
+    "cut",
+    "warn",
+    "downgrade",
+    "sell",
+    "negative",
+    "underperform",
+    "disappoint",
+}
 
 
 def _sentiment(text: str) -> str:
@@ -31,8 +60,12 @@ async def fetch_news_for_ticker(ticker: str) -> list[dict]:
         async with httpx.AsyncClient(timeout=8.0) as client:
             r = await client.get(
                 "https://finnhub.io/api/v1/company-news",
-                params={"symbol": ticker, "from": from_date, "to": to_date,
-                        "token": settings.finnhub_api_key},
+                params={
+                    "symbol": ticker,
+                    "from": from_date,
+                    "to": to_date,
+                    "token": settings.finnhub_api_key,
+                },
             )
         if r.status_code != 200:
             return []
@@ -46,7 +79,8 @@ async def fetch_news_for_ticker(ticker: str) -> list[dict]:
                 "image_url": a.get("image") or None,
                 "url": a.get("url", ""),
                 "published_at": datetime.utcfromtimestamp(a["datetime"]).isoformat() + "Z"
-                if a.get("datetime") else "",
+                if a.get("datetime")
+                else "",
             }
             for a in articles
             if a.get("headline")

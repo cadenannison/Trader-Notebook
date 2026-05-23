@@ -10,7 +10,9 @@ export function useStockPrice(ticker: string) {
   return useQuery({
     queryKey: ["price", sym],
     queryFn: async (): Promise<StockData> => {
-      const res = await api.get("/api/stock/price", { params: { ticker: sym } });
+      const res = await api.get("/api/stock/price", {
+        params: { ticker: sym },
+      });
       return res.data;
     },
     refetchInterval: 60_000,

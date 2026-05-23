@@ -18,6 +18,7 @@ def _get_sb():
     if not (settings.supabase_url and settings.supabase_service_key):
         return None
     from supabase import create_client
+
     return create_client(settings.supabase_url, settings.supabase_service_key)
 
 
@@ -97,14 +98,21 @@ async def create_journal_note(
     if sb:
         key = derive_key(settings.master_key, user_id)
         encrypted = encrypt(body.content, key)
-        row = sb.table("journal_notes").insert({
-            "user_id": user_id,
-            "title": body.title or None,
-            "encrypted_content": encrypted.hex(),
-            "tags": tags,
-            "created_at": now,
-            "updated_at": now,
-        }).execute().data[0]
+        row = (
+            sb.table("journal_notes")
+            .insert(
+                {
+                    "user_id": user_id,
+                    "title": body.title or None,
+                    "encrypted_content": encrypted.hex(),
+                    "tags": tags,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            )
+            .execute()
+            .data[0]
+        )
         return _decrypt_row(row, key)
 
     note = {
@@ -168,11 +176,7 @@ async def delete_journal_note(note_id: str, user_id: str = Depends(get_current_u
     sb = _get_sb()
     if sb:
         result = (
-            sb.table("journal_notes")
-            .delete()
-            .eq("id", note_id)
-            .eq("user_id", user_id)
-            .execute()
+            sb.table("journal_notes").delete().eq("id", note_id).eq("user_id", user_id).execute()
         )
         if not result.data:
             raise HTTPException(status_code=404, detail="Note not found")
@@ -180,8 +184,7 @@ async def delete_journal_note(note_id: str, user_id: str = Depends(get_current_u
 
     before = len(_mock_journal_notes)
     _mock_journal_notes = [
-        n for n in _mock_journal_notes
-        if not (n["id"] == note_id and n["user_id"] == user_id)
+        n for n in _mock_journal_notes if not (n["id"] == note_id and n["user_id"] == user_id)
     ]
     if len(_mock_journal_notes) == before:
         raise HTTPException(status_code=404, detail="Note not found")
@@ -205,6 +208,7 @@ async def get_notes_context(user_id: str) -> str:
         if not rows:
             return ""
         from app.config import settings as _s
+
         key = derive_key(_s.master_key, user_id)
         lines = []
         for r in rows:

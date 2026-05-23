@@ -17,6 +17,7 @@ def _get_sb():
     if not (settings.supabase_url and settings.supabase_service_key):
         return None
     from supabase import create_client
+
     return create_client(settings.supabase_url, settings.supabase_service_key)
 
 
@@ -67,12 +68,7 @@ async def get_trades(
 ):
     sb = _get_sb()
     if sb:
-        q = (
-            sb.table("trades")
-            .select("*")
-            .eq("user_id", user_id)
-            .order("logged_at", desc=True)
-        )
+        q = sb.table("trades").select("*").eq("user_id", user_id).order("logged_at", desc=True)
         if ticker:
             q = q.eq("ticker", ticker.upper())
         if status:
@@ -165,9 +161,7 @@ async def close_trade(
 
         entry_price = existing.data[0]["entry_price"]
         watchlist_entry_id = existing.data[0].get("watchlist_entry_id")
-        return_pct = round(
-            (body.exit_price - entry_price) / entry_price * 100, 4
-        )
+        return_pct = round((body.exit_price - entry_price) / entry_price * 100, 4)
 
         updates = {
             "exit_price": body.exit_price,
@@ -177,11 +171,7 @@ async def close_trade(
             "closed_at": now,
         }
         result = (
-            sb.table("trades")
-            .update(updates)
-            .eq("id", trade_id)
-            .eq("user_id", user_id)
-            .execute()
+            sb.table("trades").update(updates).eq("id", trade_id).eq("user_id", user_id).execute()
         )
 
         # Transition watchlist entry to completed (unless external capital reason)
@@ -198,13 +188,15 @@ async def close_trade(
             return_pct = round(
                 (body.exit_price - trade["entry_price"]) / trade["entry_price"] * 100, 4
             )
-            trade.update({
-                "exit_price": body.exit_price,
-                "exit_reason": body.exit_reason,
-                "return_pct": return_pct,
-                "status": "closed",
-                "closed_at": now,
-            })
+            trade.update(
+                {
+                    "exit_price": body.exit_price,
+                    "exit_reason": body.exit_reason,
+                    "return_pct": return_pct,
+                    "status": "closed",
+                    "closed_at": now,
+                }
+            )
             return trade
     raise HTTPException(status_code=404, detail="Trade not found")
 
@@ -252,16 +244,10 @@ async def update_trade(
             new_entry = updates.get("entry_price", row["entry_price"])
             new_exit = updates.get("exit_price", row["exit_price"])
             if new_exit is not None:
-                updates["return_pct"] = round(
-                    (new_exit - new_entry) / new_entry * 100, 4
-                )
+                updates["return_pct"] = round((new_exit - new_entry) / new_entry * 100, 4)
 
         result = (
-            sb.table("trades")
-            .update(updates)
-            .eq("id", trade_id)
-            .eq("user_id", user_id)
-            .execute()
+            sb.table("trades").update(updates).eq("id", trade_id).eq("user_id", user_id).execute()
         )
         return result.data[0]
 
@@ -281,18 +267,14 @@ async def delete_trade(trade_id: str, user_id: str = Depends(get_current_user)):
     global _mock_trades
     sb = _get_sb()
     if sb:
-        result = (
-            sb.table("trades")
-            .delete()
-            .eq("id", trade_id)
-            .eq("user_id", user_id)
-            .execute()
-        )
+        result = sb.table("trades").delete().eq("id", trade_id).eq("user_id", user_id).execute()
         if not result.data:
             raise HTTPException(status_code=404, detail="Trade not found")
         return
 
     before = len(_mock_trades)
-    _mock_trades = [t for t in _mock_trades if not (t["id"] == trade_id and t["user_id"] == user_id)]
+    _mock_trades = [
+        t for t in _mock_trades if not (t["id"] == trade_id and t["user_id"] == user_id)
+    ]
     if len(_mock_trades) == before:
         raise HTTPException(status_code=404, detail="Trade not found")

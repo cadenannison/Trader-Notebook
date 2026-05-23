@@ -14,7 +14,8 @@ export const MOCK_TRADES: Trade[] = [
     exit_reason: "hit_target",
     return_pct: 7.75,
     status: "closed",
-    pre_trade_notes: "Breakout above the $840 consolidation zone. AI capex cycle still intact.",
+    pre_trade_notes:
+      "Breakout above the $840 consolidation zone. AI capex cycle still intact.",
     logged_at: "2026-04-22T10:15:00Z",
     closed_at: "2026-04-30T10:00:00Z",
   },
@@ -31,7 +32,8 @@ export const MOCK_TRADES: Trade[] = [
     exit_reason: null,
     return_pct: null,
     status: "open",
-    pre_trade_notes: "Services revenue thesis. Buying dip into earnings. Need to see margin guidance.",
+    pre_trade_notes:
+      "Services revenue thesis. Buying dip into earnings. Need to see margin guidance.",
     logged_at: "2026-04-25T14:30:00Z",
     closed_at: null,
   },
@@ -48,7 +50,8 @@ export const MOCK_TRADES: Trade[] = [
     exit_reason: "thesis_changed",
     return_pct: -13.6,
     status: "closed",
-    pre_trade_notes: "Thesis broke when Musk confirmed more Tesla time needed. Stopped out.",
+    pre_trade_notes:
+      "Thesis broke when Musk confirmed more Tesla time needed. Stopped out.",
     logged_at: "2026-04-18T09:45:00Z",
     closed_at: "2026-04-25T09:00:00Z",
   },
@@ -65,7 +68,8 @@ export const MOCK_TRADES: Trade[] = [
     exit_reason: null,
     return_pct: null,
     status: "open",
-    pre_trade_notes: "Broad tech exposure as hedge. Sector rotation into tech looks healthy.",
+    pre_trade_notes:
+      "Broad tech exposure as hedge. Sector rotation into tech looks healthy.",
     logged_at: "2026-04-28T11:00:00Z",
     closed_at: null,
   },

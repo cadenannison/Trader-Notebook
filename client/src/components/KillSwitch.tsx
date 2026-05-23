@@ -11,8 +11,9 @@ export function KillSwitch() {
         <div className="space-y-1">
           <p className="text-sm font-medium text-zinc-200">Maintenance Mode</p>
           <p className="text-xs text-zinc-500 leading-relaxed">
-            Halts all agentic workers and trigger checks instantly without requiring a redeploy.
-            Flip this if you see runaway AI costs or unexpected behaviour.
+            Halts all agentic workers and trigger checks instantly without
+            requiring a redeploy. Flip this if you see runaway AI costs or
+            unexpected behaviour.
           </p>
         </div>
         <button

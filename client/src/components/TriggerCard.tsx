@@ -16,7 +16,8 @@ export function TriggerCard({ trigger, showTicker = true }: Props) {
   const rearm = useRearmTrigger();
   const del = useDeleteTrigger();
 
-  const conditionLabel = trigger.condition === "above" ? "rises above" : "falls below";
+  const conditionLabel =
+    trigger.condition === "above" ? "rises above" : "falls below";
 
   return (
     <div

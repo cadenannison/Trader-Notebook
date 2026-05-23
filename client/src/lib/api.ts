@@ -20,7 +20,7 @@ api.interceptors.request.use(async (config) => {
         config.headers.Authorization = `Bearer ${session.access_token}`;
       }
     } catch {
-      // Supabase not configured — proceed without auth header (dev mode)
+      // Supabase not configured - proceed without auth header (dev mode)
     }
   }
   return config;
