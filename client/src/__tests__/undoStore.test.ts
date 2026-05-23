@@ -15,7 +15,9 @@ describe("useUndoStore", () => {
   });
 
   it("push adds frame to past", () => {
-    useUndoStore.getState().push({ label: "delete NVDA", undo: noop, redo: noop });
+    useUndoStore
+      .getState()
+      .push({ label: "delete NVDA", undo: noop, redo: noop });
     expect(useUndoStore.getState().past).toHaveLength(1);
     expect(useUndoStore.getState().past[0].label).toBe("delete NVDA");
   });
@@ -25,13 +27,17 @@ describe("useUndoStore", () => {
       past: [],
       future: [{ label: "stale", undo: noop, redo: noop }],
     });
-    useUndoStore.getState().push({ label: "new action", undo: noop, redo: noop });
+    useUndoStore
+      .getState()
+      .push({ label: "new action", undo: noop, redo: noop });
     expect(useUndoStore.getState().future).toHaveLength(0);
   });
 
   it("push caps history at 20 entries", () => {
     for (let i = 0; i < 25; i++) {
-      useUndoStore.getState().push({ label: `frame-${i}`, undo: noop, redo: noop });
+      useUndoStore
+        .getState()
+        .push({ label: `frame-${i}`, undo: noop, redo: noop });
     }
     expect(useUndoStore.getState().past).toHaveLength(20);
   });
@@ -64,7 +70,9 @@ describe("useUndoStore", () => {
   });
 
   it("undo then redo roundtrip restores original state", () => {
-    useUndoStore.getState().push({ label: "roundtrip", undo: noop, redo: noop });
+    useUndoStore
+      .getState()
+      .push({ label: "roundtrip", undo: noop, redo: noop });
     useUndoStore.getState().popUndo();
     expect(useUndoStore.getState().past).toHaveLength(0);
     expect(useUndoStore.getState().future).toHaveLength(1);

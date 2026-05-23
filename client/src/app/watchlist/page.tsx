@@ -453,8 +453,7 @@ export default function WatchlistPage() {
           <Eye size={32} className="text-slate-300" />
           <p className="text-sm font-semibold text-slate-500">No ideas yet</p>
           <p className="text-xs text-slate-400 max-w-xs">
-            Tell the chat "I like NVDA for an earnings play" and it'll appear
-            here automatically.
+            {`Tell the chat "I like NVDA for an earnings play" and it'll appear here automatically.`}
           </p>
           <button
             onClick={() => {
