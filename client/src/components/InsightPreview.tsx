@@ -28,8 +28,8 @@ export function InsightPreview() {
       <p className="text-zinc-300 text-sm leading-relaxed">{insight.summary}</p>
       <p className="text-xs text-zinc-600 border-t border-zinc-800 pt-3">
         This summary was generated automatically and is{" "}
-        <strong className="text-zinc-500">not financial advice</strong>. Verify all information
-        before making any decisions.
+        <strong className="text-zinc-500">not financial advice</strong>. Verify
+        all information before making any decisions.
       </p>
     </div>
   );

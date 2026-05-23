@@ -4,7 +4,17 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export interface ChatAction {
-  type: "add_alert" | "show_view" | "log_idea" | "log_trade" | "close_trade" | "create_portfolio" | "assign_to_portfolio" | "add_journal_note" | "update_alert" | "delete_alert";
+  type:
+    | "add_alert"
+    | "show_view"
+    | "log_idea"
+    | "log_trade"
+    | "close_trade"
+    | "create_portfolio"
+    | "assign_to_portfolio"
+    | "add_journal_note"
+    | "update_alert"
+    | "delete_alert";
   // add_alert
   ticker?: string;
   condition?: string;
@@ -48,10 +58,10 @@ export interface ChatMessage {
   id: string;
   role: "user" | "ai";
   text: string;
-  action?: ChatAction | null;       // legacy single action
-  actions?: ChatAction[];           // multi-action array
-  actionsCreated?: boolean[];       // per-action success flags
-  actionCreated?: boolean;          // legacy compat
+  action?: ChatAction | null; // legacy single action
+  actions?: ChatAction[]; // multi-action array
+  actionsCreated?: boolean[]; // per-action success flags
+  actionCreated?: boolean; // legacy compat
 }
 
 interface AppState {
@@ -71,10 +81,13 @@ export const useAppStore = create<AppState>()(
       setMaintenanceMode: (value) => set({ maintenanceMode: value }),
 
       chatMessages: [],
-      addChatMessage: (msg) => set((s) => ({ chatMessages: [...s.chatMessages, msg] })),
+      addChatMessage: (msg) =>
+        set((s) => ({ chatMessages: [...s.chatMessages, msg] })),
       updateChatMessage: (id, updates) =>
         set((s) => ({
-          chatMessages: s.chatMessages.map((m) => (m.id === id ? { ...m, ...updates } : m)),
+          chatMessages: s.chatMessages.map((m) =>
+            m.id === id ? { ...m, ...updates } : m
+          ),
         })),
       clearChat: () => set({ chatMessages: [] }),
     }),

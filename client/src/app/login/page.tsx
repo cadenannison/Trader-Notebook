@@ -65,8 +65,14 @@ export default function LoginPage() {
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault();
-    if (password !== confirmPassword) { setError("Passwords don't match."); return; }
-    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
+    if (password !== confirmPassword) {
+      setError("Passwords don't match.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
     setError(null);
     setLoading(true);
 
@@ -94,9 +100,12 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error: authErr } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login`,
-    });
+    const { error: authErr } = await supabase.auth.resetPasswordForEmail(
+      email,
+      {
+        redirectTo: `${window.location.origin}/login`,
+      }
+    );
     if (authErr) setError(authErr.message);
     else setResetSent(true);
     setLoading(false);
@@ -110,10 +119,16 @@ export default function LoginPage() {
         {/* Brand */}
         <div className="text-center mb-8">
           <div className="w-12 h-12 rounded-xl border-[1.5px] border-brand flex items-center justify-center mx-auto mb-4">
-            <span className="text-brand font-bold text-base leading-none">tN</span>
+            <span className="text-brand font-bold text-base leading-none">
+              tN
+            </span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">tradrNotebook</h1>
-          <p className="text-sm text-slate-500 mt-1">AI-powered trading journal</p>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            tradrNotebook
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            AI-powered trading journal
+          </p>
         </div>
 
         {/* ── Reset password ── */}
@@ -121,19 +136,29 @@ export default function LoginPage() {
           <div className="bg-white border border-brand-border rounded-xl p-6 shadow-sm space-y-4">
             {resetSent ? (
               <div className="text-center space-y-2">
-                <p className="text-sm font-medium text-slate-800">Check your inbox</p>
-                <p className="text-xs text-slate-500">
-                  A reset link was sent to <span className="font-medium">{email}</span>.
+                <p className="text-sm font-medium text-slate-800">
+                  Check your inbox
                 </p>
-                <button onClick={() => switchMode("signin")} className="text-xs text-brand hover:underline mt-1">
+                <p className="text-xs text-slate-500">
+                  A reset link was sent to{" "}
+                  <span className="font-medium">{email}</span>.
+                </p>
+                <button
+                  onClick={() => switchMode("signin")}
+                  className="text-xs text-brand hover:underline mt-1"
+                >
                   Back to sign in
                 </button>
               </div>
             ) : (
               <form onSubmit={handleReset} className="space-y-4">
                 <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-3">Reset your password</p>
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Email address</label>
+                  <p className="text-sm font-semibold text-slate-800 mb-3">
+                    Reset your password
+                  </p>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                    Email address
+                  </label>
                   <input
                     type="email"
                     required
@@ -170,11 +195,17 @@ export default function LoginPage() {
             {/* Signup confirmation screen */}
             {signupDone ? (
               <div className="bg-white border border-brand-border rounded-xl p-6 text-center shadow-sm space-y-3">
-                <p className="text-sm font-medium text-slate-800">Check your inbox</p>
-                <p className="text-xs text-slate-500">
-                  Confirm your email at <span className="font-medium">{email}</span>, then sign in.
+                <p className="text-sm font-medium text-slate-800">
+                  Check your inbox
                 </p>
-                <button onClick={() => switchMode("signin")} className="text-xs text-brand hover:underline">
+                <p className="text-xs text-slate-500">
+                  Confirm your email at{" "}
+                  <span className="font-medium">{email}</span>, then sign in.
+                </p>
+                <button
+                  onClick={() => switchMode("signin")}
+                  className="text-xs text-brand hover:underline"
+                >
                   Back to sign in
                 </button>
               </div>
@@ -188,7 +219,9 @@ export default function LoginPage() {
                       type="button"
                       onClick={() => switchMode(m)}
                       className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                        mode === m ? "bg-brand text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                        mode === m
+                          ? "bg-brand text-white shadow-sm"
+                          : "text-slate-500 hover:text-slate-700"
                       }`}
                     >
                       {m === "signin" ? "Sign in" : "Create account"}
@@ -200,7 +233,9 @@ export default function LoginPage() {
                 {mode === "signin" && (
                   <form onSubmit={handleSignIn} className="space-y-4">
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1.5">Username</label>
+                      <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                        Username
+                      </label>
                       <input
                         type="text"
                         required
@@ -212,7 +247,9 @@ export default function LoginPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1.5">Password</label>
+                      <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                        Password
+                      </label>
                       <input
                         type="password"
                         required
@@ -246,7 +283,10 @@ export default function LoginPage() {
                   <form onSubmit={handleSignUp} className="space-y-4">
                     <div>
                       <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                        Username <span className="font-normal text-slate-400">(optional)</span>
+                        Username{" "}
+                        <span className="font-normal text-slate-400">
+                          (optional)
+                        </span>
                       </label>
                       <input
                         type="text"
@@ -258,7 +298,9 @@ export default function LoginPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1.5">Email</label>
+                      <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                        Email
+                      </label>
                       <input
                         type="email"
                         required
@@ -270,7 +312,9 @@ export default function LoginPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1.5">Password</label>
+                      <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                        Password
+                      </label>
                       <input
                         type="password"
                         required
@@ -282,7 +326,9 @@ export default function LoginPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1.5">Confirm password</label>
+                      <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                        Confirm password
+                      </label>
                       <input
                         type="password"
                         required

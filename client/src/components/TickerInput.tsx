@@ -5,8 +5,20 @@ import { useEffect, useState } from "react";
 import { clsx } from "clsx";
 
 const KNOWN_TICKERS = new Set([
-  "NVDA", "AAPL", "MSFT", "VGT", "GOOGL", "AMZN", "TSLA",
-  "META", "SPY", "QQQ", "MSFT", "NFLX", "AMD", "INTC",
+  "NVDA",
+  "AAPL",
+  "MSFT",
+  "VGT",
+  "GOOGL",
+  "AMZN",
+  "TSLA",
+  "META",
+  "SPY",
+  "QQQ",
+  "MSFT",
+  "NFLX",
+  "AMD",
+  "INTC",
 ]);
 
 interface Props {
@@ -16,7 +28,12 @@ interface Props {
   placeholder?: string;
 }
 
-export function TickerInput({ value, onChange, onValidate, placeholder = "NVDA" }: Props) {
+export function TickerInput({
+  value,
+  onChange,
+  onValidate,
+  placeholder = "NVDA",
+}: Props) {
   const [status, setStatus] = useState<"idle" | "valid" | "invalid">("idle");
   const [name, setName] = useState("");
 
@@ -42,13 +59,16 @@ export function TickerInput({ value, onChange, onValidate, placeholder = "NVDA" 
         <input
           type="text"
           value={value}
-          onChange={(e) => onChange(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))}
+          onChange={(e) =>
+            onChange(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))
+          }
           placeholder={placeholder}
           maxLength={10}
           className={clsx(
             "w-full bg-zinc-800 border rounded-md px-3 py-2 text-sm font-mono text-zinc-100 placeholder:text-zinc-600",
             "focus:outline-none focus:ring-1 transition-colors",
-            status === "valid" && "border-emerald-500 focus:ring-emerald-500/30",
+            status === "valid" &&
+              "border-emerald-500 focus:ring-emerald-500/30",
             status === "invalid" && "border-red-500 focus:ring-red-500/30",
             status === "idle" && "border-zinc-700 focus:ring-zinc-500/30"
           )}
@@ -64,8 +84,12 @@ export function TickerInput({ value, onChange, onValidate, placeholder = "NVDA" 
           </span>
         )}
       </div>
-      {status === "valid" && name && <p className="text-xs text-zinc-500">{name}</p>}
-      {status === "invalid" && <p className="text-xs text-red-500">Invalid ticker symbol</p>}
+      {status === "valid" && name && (
+        <p className="text-xs text-zinc-500">{name}</p>
+      )}
+      {status === "invalid" && (
+        <p className="text-xs text-red-500">Invalid ticker symbol</p>
+      )}
     </div>
   );
 }

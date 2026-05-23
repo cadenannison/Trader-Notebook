@@ -3,7 +3,15 @@
 import { useMemo } from "react";
 
 import { clsx } from "clsx";
-import { ExternalLink, Key, Newspaper, RefreshCw, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import {
+  ExternalLink,
+  Key,
+  Newspaper,
+  RefreshCw,
+  TrendingDown,
+  TrendingUp,
+  Minus,
+} from "lucide-react";
 import { isAxiosError } from "axios";
 
 import { useNews } from "@/hooks/useNews";
@@ -37,7 +45,11 @@ const SENTIMENT_CONFIG = {
   },
 };
 
-function SentimentBadge({ sentiment }: { sentiment: NewsArticle["sentiment"] }) {
+function SentimentBadge({
+  sentiment,
+}: {
+  sentiment: NewsArticle["sentiment"];
+}) {
   const cfg = SENTIMENT_CONFIG[sentiment];
   const Icon = cfg.icon;
   return (
@@ -68,17 +80,24 @@ function NewsCard({ article }: { article: NewsArticle }) {
               {article.ticker}
             </span>
             <SentimentBadge sentiment={article.sentiment} />
-            <span className="text-[10.5px] text-slate-400 ml-auto">{timeAgo(article.published_at)}</span>
+            <span className="text-[10.5px] text-slate-400 ml-auto">
+              {timeAgo(article.published_at)}
+            </span>
           </div>
           <p className="text-sm font-medium text-slate-900 leading-snug group-hover:text-brand transition-colors line-clamp-2">
             {article.headline}
           </p>
           {article.summary && (
-            <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">{article.summary}</p>
+            <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+              {article.summary}
+            </p>
           )}
           <p className="text-[10.5px] text-slate-400 mt-2">{article.source}</p>
         </div>
-        <ExternalLink size={14} className="text-slate-300 group-hover:text-brand shrink-0 mt-0.5 transition-colors" />
+        <ExternalLink
+          size={14}
+          className="text-slate-300 group-hover:text-brand shrink-0 mt-0.5 transition-colors"
+        />
       </div>
     </a>
   );
@@ -91,11 +110,17 @@ function SetupState() {
         <Key size={20} className="text-brand" />
       </div>
       <div className="space-y-1">
-        <h2 className="text-base font-semibold text-slate-900">Add your Finnhub API key</h2>
+        <h2 className="text-base font-semibold text-slate-900">
+          Add your Finnhub API key
+        </h2>
         <p className="text-sm text-slate-500 max-w-xs">
           Market news requires a Finnhub API key. Get a free key at{" "}
-          <span className="text-brand font-medium">finnhub.io</span> and add it in{" "}
-          <a href="/settings" className="text-brand underline underline-offset-2">
+          <span className="text-brand font-medium">finnhub.io</span> and add it
+          in{" "}
+          <a
+            href="/settings"
+            className="text-brand underline underline-offset-2"
+          >
             Settings
           </a>
           .
@@ -112,7 +137,9 @@ function EmptyWatchlist() {
         <Newspaper size={20} className="text-brand" />
       </div>
       <div className="space-y-1">
-        <h2 className="text-base font-semibold text-slate-900">No tickers on your watchlist</h2>
+        <h2 className="text-base font-semibold text-slate-900">
+          No tickers on your watchlist
+        </h2>
         <p className="text-sm text-slate-500 max-w-xs">
           Add price alerts in{" "}
           <a href="/alerts" className="text-brand underline underline-offset-2">
@@ -160,7 +187,9 @@ export default function NewsPage() {
       {/* Header */}
       <div className="px-6 py-4 border-b border-slate-200 bg-white flex items-center justify-between">
         <div>
-          <h1 className="text-base font-semibold text-slate-900">Market News</h1>
+          <h1 className="text-base font-semibold text-slate-900">
+            Market News
+          </h1>
           {tickers.length > 0 && (
             <p className="text-xs text-slate-400 mt-0.5">
               {tickers.join(" · ")}
@@ -192,7 +221,9 @@ export default function NewsPage() {
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
-            <p className="text-sm text-slate-500">Failed to load news. Check your connection and try again.</p>
+            <p className="text-sm text-slate-500">
+              Failed to load news. Check your connection and try again.
+            </p>
             <button
               onClick={() => refetch()}
               className="text-xs text-brand border border-brand-border rounded-full px-3 py-1.5 hover:bg-brand-light transition-colors"
@@ -203,7 +234,9 @@ export default function NewsPage() {
         ) : !articles || articles.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
             <Newspaper size={20} className="text-slate-300" />
-            <p className="text-sm text-slate-500">No recent news found for {tickers.join(", ")}.</p>
+            <p className="text-sm text-slate-500">
+              No recent news found for {tickers.join(", ")}.
+            </p>
           </div>
         ) : (
           <div className="max-w-2xl mx-auto space-y-3">

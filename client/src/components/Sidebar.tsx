@@ -28,7 +28,10 @@ const mainNav = [
 function BrandMark() {
   return (
     <div className="w-9 h-9 rounded-[7px] border-[1.5px] border-brand flex items-center justify-center shrink-0 relative overflow-hidden">
-      <span className="text-brand font-bold text-sm leading-none select-none" style={{ letterSpacing: "-0.03em" }}>
+      <span
+        className="text-brand font-bold text-sm leading-none select-none"
+        style={{ letterSpacing: "-0.03em" }}
+      >
         tN
       </span>
     </div>
@@ -106,7 +109,9 @@ export function Sidebar() {
       <div className="px-3 py-4 border-t border-brand-subtle space-y-1">
         {displayName && (
           <div className="px-3 py-1.5 mb-1">
-            <p className="text-xs font-semibold text-slate-700 truncate">@{displayName}</p>
+            <p className="text-xs font-semibold text-slate-700 truncate">
+              @{displayName}
+            </p>
           </div>
         )}
         <NavItem

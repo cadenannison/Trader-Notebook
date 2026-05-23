@@ -19,7 +19,10 @@ export function useNotes(ticker?: string) {
 export function useCreateNote() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: { ticker: string; content: string }): Promise<UserNote> => {
+    mutationFn: async (data: {
+      ticker: string;
+      content: string;
+    }): Promise<UserNote> => {
       const res = await api.post("/api/notes", data);
       return res.data;
     },

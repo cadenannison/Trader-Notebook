@@ -11,7 +11,10 @@ import type {
   WatchlistStatus,
 } from "@shared/types";
 
-export function useWatchlist(opts?: { status?: WatchlistStatus; ticker?: string }) {
+export function useWatchlist(opts?: {
+  status?: WatchlistStatus;
+  ticker?: string;
+}) {
   const params: Record<string, string> = {};
   if (opts?.status) params.status = opts.status;
   if (opts?.ticker) params.ticker = opts.ticker;

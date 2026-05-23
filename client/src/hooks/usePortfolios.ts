@@ -18,7 +18,10 @@ export function usePortfolios() {
 export function useCreatePortfolio() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: { name: string; thesis?: string }): Promise<Portfolio> => {
+    mutationFn: async (data: {
+      name: string;
+      thesis?: string;
+    }): Promise<Portfolio> => {
       const res = await api.post("/api/portfolios", data);
       return res.data;
     },

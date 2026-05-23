@@ -54,7 +54,11 @@ export function NewNoteForm({ defaultTicker = "" }: Props) {
         {!defaultTicker && (
           <div>
             <label className="text-xs text-zinc-500 block mb-1">Ticker</label>
-            <TickerInput value={ticker} onChange={setTicker} onValidate={setTickerValid} />
+            <TickerInput
+              value={ticker}
+              onChange={setTicker}
+              onValidate={setTickerValid}
+            />
           </div>
         )}
         <div>

@@ -91,16 +91,24 @@ export function NewTriggerForm({ defaultTicker = "" }: Props) {
         {!defaultTicker && (
           <div>
             <label className="text-xs text-zinc-500 block mb-1">Ticker</label>
-            <TickerInput value={ticker} onChange={setTicker} onValidate={setTickerValid} />
+            <TickerInput
+              value={ticker}
+              onChange={setTicker}
+              onValidate={setTickerValid}
+            />
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-xs text-zinc-500 block mb-1">Condition</label>
+            <label className="text-xs text-zinc-500 block mb-1">
+              Condition
+            </label>
             <select
               value={condition}
-              onChange={(e) => setCondition(e.target.value as "above" | "below")}
+              onChange={(e) =>
+                setCondition(e.target.value as "above" | "below")
+              }
               className="w-full bg-zinc-800 border border-zinc-700 rounded-md px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-500/30"
             >
               <option value="above">Rises above</option>
@@ -108,7 +116,9 @@ export function NewTriggerForm({ defaultTicker = "" }: Props) {
             </select>
           </div>
           <div>
-            <label className="text-xs text-zinc-500 block mb-1">Target price</label>
+            <label className="text-xs text-zinc-500 block mb-1">
+              Target price
+            </label>
             <input
               type="number"
               value={price}
@@ -140,7 +150,9 @@ export function NewTriggerForm({ defaultTicker = "" }: Props) {
             <div className="mt-3 space-y-4 bg-zinc-800/50 rounded-md p-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-zinc-300">Keep trigger armed after firing</span>
+                  <span className="text-xs text-zinc-300">
+                    Keep trigger armed after firing
+                  </span>
                   <InfoTooltip text="By default, your trigger deactivates after it fires once and you must re-arm it manually. Enable this to keep it active and receive repeated alerts." />
                 </div>
                 <button
@@ -163,7 +175,9 @@ export function NewTriggerForm({ defaultTicker = "" }: Props) {
               {!autoDisarm && (
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-zinc-300">Cooldown period</span>
+                    <span className="text-xs text-zinc-300">
+                      Cooldown period
+                    </span>
                     <InfoTooltip text="Minimum time between alerts for this trigger. Prevents repeated notifications if the price hovers near your target." />
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -171,7 +185,9 @@ export function NewTriggerForm({ defaultTicker = "" }: Props) {
                       type="number"
                       value={cooldownHours}
                       onChange={(e) =>
-                        setCooldownHours(Math.max(1, parseInt(e.target.value) || 1))
+                        setCooldownHours(
+                          Math.max(1, parseInt(e.target.value) || 1)
+                        )
                       }
                       min="1"
                       max="168"
