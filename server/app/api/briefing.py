@@ -24,6 +24,7 @@ def _get_sb():
     if not (settings.supabase_url and settings.supabase_service_key):
         return None
     from supabase import create_client
+
     return create_client(settings.supabase_url, settings.supabase_service_key)
 
 
@@ -94,7 +95,9 @@ async def _coaching_insight(
         )
         recent_trades = result.data or []
 
-    near_str = ", ".join(f"{n['ticker']} ({n['pct_away']:.1f}% away)" for n in near_triggers) or "none"
+    near_str = (
+        ", ".join(f"{n['ticker']} ({n['pct_away']:.1f}% away)" for n in near_triggers) or "none"
+    )
     earn_str = ", ".join(e["ticker"] for e in earnings) or "none"
     movers_str = ", ".join(f"{m['ticker']} {m['change_pct']:+.1f}%" for m in movers) or "none"
     trades_str = (
@@ -148,7 +151,8 @@ async def get_briefing(user_id: str = Depends(get_current_user)):
         .eq("user_id", user_id)
         .in_("status", ["watching", "active_trade"])
         .execute()
-        .data or []
+        .data
+        or []
     )
     tickers = list({e["ticker"] for e in entries})
 
@@ -179,13 +183,15 @@ async def get_briefing(user_id: str = Depends(get_current_user)):
             if level and level > 0:
                 pct_away = abs(price - level) / level * 100
                 if pct_away <= 3.0:
-                    near_triggers.append({
-                        "ticker": e["ticker"],
-                        "level_type": level_key,
-                        "level": level,
-                        "current_price": price,
-                        "pct_away": pct_away,
-                    })
+                    near_triggers.append(
+                        {
+                            "ticker": e["ticker"],
+                            "level_type": level_key,
+                            "level": level,
+                            "current_price": price,
+                            "pct_away": pct_away,
+                        }
+                    )
 
     # 4. Open trades that moved >2% from entry (overnight movers)
     open_trades = (
@@ -194,7 +200,8 @@ async def get_briefing(user_id: str = Depends(get_current_user)):
         .eq("user_id", user_id)
         .eq("status", "open")
         .execute()
-        .data or []
+        .data
+        or []
     )
     overnight_movers = []
     for t in open_trades:
@@ -202,12 +209,14 @@ async def get_briefing(user_id: str = Depends(get_current_user)):
         if price and t.get("entry_price"):
             change_pct = (price - t["entry_price"]) / t["entry_price"] * 100
             if abs(change_pct) >= 2.0:
-                overnight_movers.append({
-                    "ticker": t["ticker"],
-                    "entry_price": t["entry_price"],
-                    "current_price": price,
-                    "change_pct": round(change_pct, 2),
-                })
+                overnight_movers.append(
+                    {
+                        "ticker": t["ticker"],
+                        "entry_price": t["entry_price"],
+                        "current_price": price,
+                        "change_pct": round(change_pct, 2),
+                    }
+                )
 
     # 5. Coaching insight from Gemini
     insight = await _coaching_insight(user_id, near_triggers, earnings, overnight_movers)

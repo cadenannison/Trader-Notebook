@@ -6,7 +6,6 @@ Verifies API contract: shapes, status codes, validation, CRUD.
 """
 
 
-
 def test_get_triggers_returns_list(client):
     resp = client.get("/api/triggers")
     assert resp.status_code == 200
@@ -22,24 +21,40 @@ def test_get_triggers_ticker_filter(client):
 
 # ── Create ────────────────────────────────────────────────────────────────────
 
+
 def test_create_trigger_above_returns_201(client):
-    resp = client.post("/api/triggers", json={
-        "ticker": "NVDA", "target_price": 1000.0, "condition": "above",
-    })
+    resp = client.post(
+        "/api/triggers",
+        json={
+            "ticker": "NVDA",
+            "target_price": 1000.0,
+            "condition": "above",
+        },
+    )
     assert resp.status_code == 201
 
 
 def test_create_trigger_below_returns_201(client):
-    resp = client.post("/api/triggers", json={
-        "ticker": "AAPL", "target_price": 150.0, "condition": "below",
-    })
+    resp = client.post(
+        "/api/triggers",
+        json={
+            "ticker": "AAPL",
+            "target_price": 150.0,
+            "condition": "below",
+        },
+    )
     assert resp.status_code == 201
 
 
 def test_create_trigger_response_shape(client):
-    resp = client.post("/api/triggers", json={
-        "ticker": "MSFT", "target_price": 400.0, "condition": "above",
-    })
+    resp = client.post(
+        "/api/triggers",
+        json={
+            "ticker": "MSFT",
+            "target_price": 400.0,
+            "condition": "above",
+        },
+    )
     data = resp.json()
     assert "id" in data
     assert data["ticker"] == "MSFT"
@@ -51,17 +66,27 @@ def test_create_trigger_response_shape(client):
 
 
 def test_create_trigger_ticker_is_uppercased(client):
-    resp = client.post("/api/triggers", json={
-        "ticker": "tsla", "target_price": 200.0, "condition": "above",
-    })
+    resp = client.post(
+        "/api/triggers",
+        json={
+            "ticker": "tsla",
+            "target_price": 200.0,
+            "condition": "above",
+        },
+    )
     assert resp.status_code == 201
     assert resp.json()["ticker"] == "TSLA"
 
 
 def test_create_trigger_invalid_condition_returns_400(client):
-    resp = client.post("/api/triggers", json={
-        "ticker": "NVDA", "target_price": 900.0, "condition": "sideways",
-    })
+    resp = client.post(
+        "/api/triggers",
+        json={
+            "ticker": "NVDA",
+            "target_price": 900.0,
+            "condition": "sideways",
+        },
+    )
     assert resp.status_code == 400
 
 
@@ -76,10 +101,16 @@ def test_create_trigger_missing_price_returns_422(client):
 
 
 def test_create_trigger_advanced_settings(client):
-    resp = client.post("/api/triggers", json={
-        "ticker": "NVDA", "target_price": 900.0, "condition": "above",
-        "auto_disarm": False, "cooldown_hours": 8,
-    })
+    resp = client.post(
+        "/api/triggers",
+        json={
+            "ticker": "NVDA",
+            "target_price": 900.0,
+            "condition": "above",
+            "auto_disarm": False,
+            "cooldown_hours": 8,
+        },
+    )
     assert resp.status_code == 201
     data = resp.json()
     assert data["auto_disarm"] is False
@@ -88,6 +119,7 @@ def test_create_trigger_advanced_settings(client):
 
 # ── Rearm ─────────────────────────────────────────────────────────────────────
 
+
 def test_rearm_nonexistent_trigger_returns_404(client):
     resp = client.put("/api/triggers/does-not-exist/rearm")
     assert resp.status_code == 404
@@ -95,15 +127,21 @@ def test_rearm_nonexistent_trigger_returns_404(client):
 
 # ── Delete ────────────────────────────────────────────────────────────────────
 
+
 def test_delete_nonexistent_trigger_returns_404(client):
     resp = client.delete("/api/triggers/does-not-exist")
     assert resp.status_code == 404
 
 
 def test_create_then_delete(client):
-    create = client.post("/api/triggers", json={
-        "ticker": "GOOGL", "target_price": 180.0, "condition": "below",
-    })
+    create = client.post(
+        "/api/triggers",
+        json={
+            "ticker": "GOOGL",
+            "target_price": 180.0,
+            "condition": "below",
+        },
+    )
     assert create.status_code == 201
     trigger_id = create.json()["id"]
 

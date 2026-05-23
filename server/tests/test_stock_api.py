@@ -8,6 +8,7 @@ Runs without a real Polygon key — falls back to mock data.
 
 # ── Ticker validation ─────────────────────────────────────────────────────────
 
+
 def test_validate_known_ticker_returns_200(client):
     resp = client.get("/api/stock/validate?ticker=NVDA")
     assert resp.status_code == 200
@@ -45,6 +46,7 @@ def test_validate_empty_ticker_returns_400(client):
 
 # ── Price endpoint ────────────────────────────────────────────────────────────
 
+
 def test_price_returns_200(client):
     resp = client.get("/api/stock/price?ticker=NVDA")
     assert resp.status_code == 200
@@ -66,6 +68,7 @@ def test_price_ticker_is_uppercased(client):
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
+
 
 def test_health_returns_ok(client):
     resp = client.get("/api/health")

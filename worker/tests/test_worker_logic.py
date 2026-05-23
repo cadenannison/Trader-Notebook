@@ -30,6 +30,7 @@ _ET = pytz.timezone("America/New_York")
 
 # ── Market hours ──────────────────────────────────────────────────────────────
 
+
 def test_market_closed_saturday():
     sat = _ET.localize(datetime(2026, 5, 9, 12, 0))
     assert _is_market_hours(sat) is False
@@ -72,6 +73,7 @@ def test_market_closed_after_close():
 
 # ── Trigger hit / miss ────────────────────────────────────────────────────────
 
+
 def test_above_trigger_hit():
     t = {"condition": "above", "target_price": 900.0}
     assert _is_trigger_hit(t, 900.01) is True
@@ -104,8 +106,13 @@ def test_below_trigger_miss():
 
 # ── Cooldown ──────────────────────────────────────────────────────────────────
 
+
 def test_auto_disarm_trigger_never_in_cooldown():
-    t = {"auto_disarm": True, "cooldown_hours": 4, "last_triggered_at": "2026-05-11T10:00:00Z"}
+    t = {
+        "auto_disarm": True,
+        "cooldown_hours": 4,
+        "last_triggered_at": "2026-05-11T10:00:00Z",
+    }
     now = datetime(2026, 5, 11, 11, 0, tzinfo=timezone.utc)
     assert _in_cooldown(t, now) is False
 
@@ -117,19 +124,31 @@ def test_never_triggered_not_in_cooldown():
 
 
 def test_within_cooldown_window():
-    t = {"auto_disarm": False, "cooldown_hours": 4, "last_triggered_at": "2026-05-11T10:00:00Z"}
+    t = {
+        "auto_disarm": False,
+        "cooldown_hours": 4,
+        "last_triggered_at": "2026-05-11T10:00:00Z",
+    }
     now = datetime(2026, 5, 11, 12, 0, tzinfo=timezone.utc)  # 2 hours later
     assert _in_cooldown(t, now) is True
 
 
 def test_cooldown_exactly_expired():
-    t = {"auto_disarm": False, "cooldown_hours": 4, "last_triggered_at": "2026-05-11T10:00:00Z"}
+    t = {
+        "auto_disarm": False,
+        "cooldown_hours": 4,
+        "last_triggered_at": "2026-05-11T10:00:00Z",
+    }
     now = datetime(2026, 5, 11, 14, 0, tzinfo=timezone.utc)  # exactly 4 hours later
     assert _in_cooldown(t, now) is False
 
 
 def test_well_past_cooldown():
-    t = {"auto_disarm": False, "cooldown_hours": 4, "last_triggered_at": "2026-05-11T10:00:00Z"}
+    t = {
+        "auto_disarm": False,
+        "cooldown_hours": 4,
+        "last_triggered_at": "2026-05-11T10:00:00Z",
+    }
     now = datetime(2026, 5, 11, 18, 0, tzinfo=timezone.utc)  # 8 hours later
     assert _in_cooldown(t, now) is False
 

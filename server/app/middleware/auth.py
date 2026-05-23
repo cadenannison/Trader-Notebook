@@ -34,7 +34,7 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> str:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing Authorization header")
 
-    token = authorization[len("Bearer "):]
+    token = authorization[len("Bearer ") :]
 
     try:
         signing_key = _get_jwks_client().get_signing_key_from_jwt(token)

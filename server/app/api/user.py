@@ -12,9 +12,16 @@ router = APIRouter()
 async def export_user_data(user_id: str = Depends(get_current_user)):
     """Export all user data as decrypted JSON."""
     if not settings.supabase_url:
-        return {"user_id": user_id, "notes": [], "triggers": [], "trades": [],
-                "watchlist": [], "journal_notes": [], "portfolios": [],
-                "exported_at": datetime.now(timezone.utc).isoformat()}
+        return {
+            "user_id": user_id,
+            "notes": [],
+            "triggers": [],
+            "trades": [],
+            "watchlist": [],
+            "journal_notes": [],
+            "portfolios": [],
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+        }
 
     from supabase import create_client
     from app.crypto.keys import derive_key, decrypt
@@ -30,11 +37,20 @@ async def export_user_data(user_id: str = Depends(get_current_user)):
             content = decrypt(bytes(n["encrypted_content"]), key)
         except Exception:
             content = "[decryption failed]"
-        notes.append({"id": n["id"], "ticker": n["ticker"], "content": content, "created_at": n["created_at"]})
+        notes.append(
+            {
+                "id": n["id"],
+                "ticker": n["ticker"],
+                "content": content,
+                "created_at": n["created_at"],
+            }
+        )
 
     triggers = sb.table("triggers").select("*").eq("user_id", user_id).execute().data or []
     trades = sb.table("trades").select("*").eq("user_id", user_id).execute().data or []
-    watchlist = sb.table("watchlist_entries").select("*").eq("user_id", user_id).execute().data or []
+    watchlist = (
+        sb.table("watchlist_entries").select("*").eq("user_id", user_id).execute().data or []
+    )
     portfolios = sb.table("portfolios").select("*").eq("user_id", user_id).execute().data or []
 
     # Journal notes — decrypt
@@ -45,11 +61,16 @@ async def export_user_data(user_id: str = Depends(get_current_user)):
             content = decrypt(bytes(jn["encrypted_content"]), key)
         except Exception:
             content = "[decryption failed]"
-        journal_notes.append({
-            "id": jn["id"], "title": jn.get("title", ""),
-            "content": content, "tags": jn.get("tags", []),
-            "created_at": jn["created_at"], "updated_at": jn.get("updated_at"),
-        })
+        journal_notes.append(
+            {
+                "id": jn["id"],
+                "title": jn.get("title", ""),
+                "content": content,
+                "tags": jn.get("tags", []),
+                "created_at": jn["created_at"],
+                "updated_at": jn.get("updated_at"),
+            }
+        )
 
     return {
         "user_id": user_id,
@@ -70,10 +91,19 @@ async def delete_account(user_id: str = Depends(get_current_user)):
         return
 
     from supabase import create_client
+
     sb = create_client(settings.supabase_url, settings.supabase_service_key)
 
     # Delete data tables (RLS-protected; service key bypasses for cleanup)
-    for table in ["notes", "triggers", "trades", "watchlist_entries", "portfolios", "journal_notes", "agent_audit_logs"]:
+    for table in [
+        "notes",
+        "triggers",
+        "trades",
+        "watchlist_entries",
+        "portfolios",
+        "journal_notes",
+        "agent_audit_logs",
+    ]:
         try:
             sb.table(table).delete().eq("user_id", user_id).execute()
         except Exception:

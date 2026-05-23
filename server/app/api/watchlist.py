@@ -17,6 +17,7 @@ def _get_sb():
     if not (settings.supabase_url and settings.supabase_service_key):
         return None
     from supabase import create_client
+
     return create_client(settings.supabase_url, settings.supabase_service_key)
 
 
@@ -40,9 +41,7 @@ class UpdateWatchlistRequest(BaseModel):
     status: Optional[str] = None
 
 
-_VALID_IDEA_SOURCES = {
-    "own_research", "tip", "news", "chart_pattern", "earnings_catalyst", "gut"
-}
+_VALID_IDEA_SOURCES = {"own_research", "tip", "news", "chart_pattern", "earnings_catalyst", "gut"}
 _VALID_HORIZONS = {"intraday", "swing", "position"}
 _VALID_STATUSES = {"watching", "active_trade", "completed", "expired"}
 
@@ -174,8 +173,7 @@ async def delete_watchlist_entry(
 
     before = len(_mock_watchlist)
     _mock_watchlist = [
-        e for e in _mock_watchlist
-        if not (e["id"] == entry_id and e["user_id"] == user_id)
+        e for e in _mock_watchlist if not (e["id"] == entry_id and e["user_id"] == user_id)
     ]
     if len(_mock_watchlist) == before:
         raise HTTPException(status_code=404, detail="Entry not found")

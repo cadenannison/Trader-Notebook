@@ -15,18 +15,24 @@ def test_get_trades_returns_list(client):
 
 
 def test_create_trade_returns_201(client):
-    resp = client.post("/api/trades", json={
-        "ticker": "NVDA",
-        "entry_price": 850.0,
-    })
+    resp = client.post(
+        "/api/trades",
+        json={
+            "ticker": "NVDA",
+            "entry_price": 850.0,
+        },
+    )
     assert resp.status_code == 201
 
 
 def test_create_trade_response_shape(client):
-    resp = client.post("/api/trades", json={
-        "ticker": "AAPL",
-        "entry_price": 180.0,
-    })
+    resp = client.post(
+        "/api/trades",
+        json={
+            "ticker": "AAPL",
+            "entry_price": 180.0,
+        },
+    )
     data = resp.json()
     assert "id" in data
     assert data["ticker"] == "AAPL"
@@ -43,16 +49,26 @@ def test_create_trade_ticker_uppercased(client):
 
 
 def test_create_trade_invalid_confidence_returns_400(client):
-    resp = client.post("/api/trades", json={
-        "ticker": "NVDA", "entry_price": 850.0, "confidence_tag": "very_sure",
-    })
+    resp = client.post(
+        "/api/trades",
+        json={
+            "ticker": "NVDA",
+            "entry_price": 850.0,
+            "confidence_tag": "very_sure",
+        },
+    )
     assert resp.status_code == 400
 
 
 def test_create_trade_invalid_horizon_returns_400(client):
-    resp = client.post("/api/trades", json={
-        "ticker": "NVDA", "entry_price": 850.0, "time_horizon": "forever",
-    })
+    resp = client.post(
+        "/api/trades",
+        json={
+            "ticker": "NVDA",
+            "entry_price": 850.0,
+            "time_horizon": "forever",
+        },
+    )
     assert resp.status_code == 400
 
 
@@ -70,10 +86,13 @@ def test_close_trade_computes_return_pct(client):
     create = client.post("/api/trades", json={"ticker": "MSFT", "entry_price": 400.0})
     trade_id = create.json()["id"]
 
-    close = client.put(f"/api/trades/{trade_id}/close", json={
-        "exit_price": 440.0,
-        "exit_reason": "hit_target",
-    })
+    close = client.put(
+        f"/api/trades/{trade_id}/close",
+        json={
+            "exit_price": 440.0,
+            "exit_reason": "hit_target",
+        },
+    )
     assert close.status_code == 200
     data = close.json()
     assert data["status"] == "closed"
@@ -85,28 +104,38 @@ def test_close_trade_negative_return(client):
     create = client.post("/api/trades", json={"ticker": "TSLA", "entry_price": 200.0})
     trade_id = create.json()["id"]
 
-    close = client.put(f"/api/trades/{trade_id}/close", json={
-        "exit_price": 180.0,
-        "exit_reason": "hit_stop_loss",
-    })
+    close = client.put(
+        f"/api/trades/{trade_id}/close",
+        json={
+            "exit_price": 180.0,
+            "exit_reason": "hit_stop_loss",
+        },
+    )
     assert close.status_code == 200
     assert close.json()["return_pct"] < 0
 
 
 def test_close_nonexistent_trade_returns_404(client):
-    resp = client.put("/api/trades/does-not-exist/close", json={
-        "exit_price": 100.0,
-        "exit_reason": "hit_target",
-    })
+    resp = client.put(
+        "/api/trades/does-not-exist/close",
+        json={
+            "exit_price": 100.0,
+            "exit_reason": "hit_target",
+        },
+    )
     assert resp.status_code == 404
 
 
 def test_close_invalid_exit_reason_returns_400(client):
     create = client.post("/api/trades", json={"ticker": "GOOGL", "entry_price": 170.0})
     trade_id = create.json()["id"]
-    resp = client.put(f"/api/trades/{trade_id}/close", json={
-        "exit_price": 190.0, "exit_reason": "got_bored",
-    })
+    resp = client.put(
+        f"/api/trades/{trade_id}/close",
+        json={
+            "exit_price": 190.0,
+            "exit_reason": "got_bored",
+        },
+    )
     assert resp.status_code == 400
 
 

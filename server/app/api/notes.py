@@ -12,18 +12,34 @@ from app.middleware.auth import get_current_user
 router = APIRouter()
 
 _mock_notes: list[dict] = [
-    {"id": "note-1", "user_id": "dev-user-id", "ticker": "NVDA",
-     "content": "Strong AI demand driving data center growth. Jensen's roadmap looks credible — Blackwell compelling for next 18 months.",
-     "created_at": "2026-04-20T10:23:00Z"},
-    {"id": "note-2", "user_id": "dev-user-id", "ticker": "NVDA",
-     "content": "Concerned about export restrictions to China eating into margins. Watch guidance on next earnings call.",
-     "created_at": "2026-04-15T14:05:00Z"},
-    {"id": "note-3", "user_id": "dev-user-id", "ticker": "VGT",
-     "content": "Tech sector consolidation looks healthy. VGT gives broad exposure without single-stock concentration risk.",
-     "created_at": "2026-04-12T09:00:00Z"},
-    {"id": "note-4", "user_id": "dev-user-id", "ticker": "AAPL",
-     "content": "Services revenue is the story now. Hardware growth plateaued but services margins are exceptional.",
-     "created_at": "2026-04-10T16:30:00Z"},
+    {
+        "id": "note-1",
+        "user_id": "dev-user-id",
+        "ticker": "NVDA",
+        "content": "Strong AI demand driving data center growth. Jensen's roadmap looks credible — Blackwell compelling for next 18 months.",
+        "created_at": "2026-04-20T10:23:00Z",
+    },
+    {
+        "id": "note-2",
+        "user_id": "dev-user-id",
+        "ticker": "NVDA",
+        "content": "Concerned about export restrictions to China eating into margins. Watch guidance on next earnings call.",
+        "created_at": "2026-04-15T14:05:00Z",
+    },
+    {
+        "id": "note-3",
+        "user_id": "dev-user-id",
+        "ticker": "VGT",
+        "content": "Tech sector consolidation looks healthy. VGT gives broad exposure without single-stock concentration risk.",
+        "created_at": "2026-04-12T09:00:00Z",
+    },
+    {
+        "id": "note-4",
+        "user_id": "dev-user-id",
+        "ticker": "AAPL",
+        "content": "Services revenue is the story now. Hardware growth plateaued but services margins are exceptional.",
+        "created_at": "2026-04-10T16:30:00Z",
+    },
 ]
 
 
@@ -31,6 +47,7 @@ def _get_sb():
     if not (settings.supabase_url and settings.supabase_service_key):
         return None
     from supabase import create_client
+
     return create_client(settings.supabase_url, settings.supabase_service_key)
 
 
@@ -48,14 +65,28 @@ async def create_note(body: CreateNoteRequest, user_id: str = Depends(get_curren
     if sb:
         key = derive_key(settings.master_key, user_id)
         encrypted = encrypt(body.content, key)
-        row = sb.table("notes").insert({
-            "user_id": user_id, "ticker": ticker,
-            "encrypted_content": encrypted.hex(), "created_at": now,
-        }).execute().data[0]
+        row = (
+            sb.table("notes")
+            .insert(
+                {
+                    "user_id": user_id,
+                    "ticker": ticker,
+                    "encrypted_content": encrypted.hex(),
+                    "created_at": now,
+                }
+            )
+            .execute()
+            .data[0]
+        )
         return {"id": row["id"], "ticker": ticker, "content": body.content, "created_at": now}
 
-    note = {"id": str(uuid.uuid4()), "user_id": user_id,
-            "ticker": ticker, "content": body.content, "created_at": now}
+    note = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "ticker": ticker,
+        "content": body.content,
+        "created_at": now,
+    }
     _mock_notes.append(note)
     return note
 
@@ -71,9 +102,12 @@ async def get_notes(ticker: Optional[str] = None, user_id: str = Depends(get_cur
         rows = q.execute().data
         key = derive_key(settings.master_key, user_id)
         return [
-            {"id": r["id"], "ticker": r["ticker"],
-             "content": decrypt(bytes.fromhex(r["encrypted_content"]), key),
-             "created_at": r["created_at"]}
+            {
+                "id": r["id"],
+                "ticker": r["ticker"],
+                "content": decrypt(bytes.fromhex(r["encrypted_content"]), key),
+                "created_at": r["created_at"],
+            }
             for r in rows
         ]
 

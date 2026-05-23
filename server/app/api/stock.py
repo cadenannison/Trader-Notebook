@@ -12,22 +12,67 @@ router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
 _MOCK_PRICES: dict = {
-    "NVDA":  {"ticker": "NVDA",  "price": 875.40, "timestamp": "2026-05-09T14:32:00Z", "change_pct":  2.14},
-    "AAPL":  {"ticker": "AAPL",  "price": 182.63, "timestamp": "2026-05-09T14:32:00Z", "change_pct": -0.41},
-    "VGT":   {"ticker": "VGT",   "price": 428.15, "timestamp": "2026-05-09T14:32:00Z", "change_pct":  0.87},
-    "MSFT":  {"ticker": "MSFT",  "price": 415.20, "timestamp": "2026-05-09T14:32:00Z", "change_pct":  1.23},
-    "GOOGL": {"ticker": "GOOGL", "price": 172.80, "timestamp": "2026-05-09T14:32:00Z", "change_pct": -0.62},
-    "TSLA":  {"ticker": "TSLA",  "price": 185.10, "timestamp": "2026-05-09T14:32:00Z", "change_pct": -1.84},
-    "META":  {"ticker": "META",  "price": 512.30, "timestamp": "2026-05-09T14:32:00Z", "change_pct":  0.54},
-    "AMZN":  {"ticker": "AMZN",  "price": 186.45, "timestamp": "2026-05-09T14:32:00Z", "change_pct": -0.27},
+    "NVDA": {
+        "ticker": "NVDA",
+        "price": 875.40,
+        "timestamp": "2026-05-09T14:32:00Z",
+        "change_pct": 2.14,
+    },
+    "AAPL": {
+        "ticker": "AAPL",
+        "price": 182.63,
+        "timestamp": "2026-05-09T14:32:00Z",
+        "change_pct": -0.41,
+    },
+    "VGT": {
+        "ticker": "VGT",
+        "price": 428.15,
+        "timestamp": "2026-05-09T14:32:00Z",
+        "change_pct": 0.87,
+    },
+    "MSFT": {
+        "ticker": "MSFT",
+        "price": 415.20,
+        "timestamp": "2026-05-09T14:32:00Z",
+        "change_pct": 1.23,
+    },
+    "GOOGL": {
+        "ticker": "GOOGL",
+        "price": 172.80,
+        "timestamp": "2026-05-09T14:32:00Z",
+        "change_pct": -0.62,
+    },
+    "TSLA": {
+        "ticker": "TSLA",
+        "price": 185.10,
+        "timestamp": "2026-05-09T14:32:00Z",
+        "change_pct": -1.84,
+    },
+    "META": {
+        "ticker": "META",
+        "price": 512.30,
+        "timestamp": "2026-05-09T14:32:00Z",
+        "change_pct": 0.54,
+    },
+    "AMZN": {
+        "ticker": "AMZN",
+        "price": 186.45,
+        "timestamp": "2026-05-09T14:32:00Z",
+        "change_pct": -0.27,
+    },
 }
 
 _MOCK_NAMES: dict = {
-    "NVDA": "NVIDIA Corporation", "AAPL": "Apple Inc.",
-    "VGT": "Vanguard Information Technology ETF", "MSFT": "Microsoft Corporation",
-    "GOOGL": "Alphabet Inc.", "AMZN": "Amazon.com Inc.",
-    "TSLA": "Tesla Inc.", "META": "Meta Platforms Inc.",
-    "SPY": "SPDR S&P 500 ETF Trust", "QQQ": "Invesco QQQ Trust",
+    "NVDA": "NVIDIA Corporation",
+    "AAPL": "Apple Inc.",
+    "VGT": "Vanguard Information Technology ETF",
+    "MSFT": "Microsoft Corporation",
+    "GOOGL": "Alphabet Inc.",
+    "AMZN": "Amazon.com Inc.",
+    "TSLA": "Tesla Inc.",
+    "META": "Meta Platforms Inc.",
+    "SPY": "SPDR S&P 500 ETF Trust",
+    "QQQ": "Invesco QQQ Trust",
 }
 
 
@@ -50,7 +95,12 @@ async def _polygon_price(ticker: str) -> dict | None:
         prev = bar.get("o", bar["c"])
         change_pct = ((bar["c"] - prev) / prev * 100) if prev else 0.0
         ts = datetime.fromtimestamp(bar["t"] / 1000, tz=timezone.utc).isoformat()
-        return {"ticker": ticker, "price": bar["c"], "timestamp": ts, "change_pct": round(change_pct, 2)}
+        return {
+            "ticker": ticker,
+            "price": bar["c"],
+            "timestamp": ts,
+            "change_pct": round(change_pct, 2),
+        }
     except Exception:
         return None
 
@@ -79,10 +129,15 @@ async def get_stock_price(ticker: str, request: Request):
     live = await _polygon_price(ticker)
     if live:
         return live
-    return _MOCK_PRICES.get(ticker, {
-        "ticker": ticker, "price": 0.0,
-        "timestamp": datetime.now(timezone.utc).isoformat(), "change_pct": 0.0,
-    })
+    return _MOCK_PRICES.get(
+        ticker,
+        {
+            "ticker": ticker,
+            "price": 0.0,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "change_pct": 0.0,
+        },
+    )
 
 
 @router.get("/stock/validate")

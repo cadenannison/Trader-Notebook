@@ -11,9 +11,37 @@ from app.middleware.auth import get_current_user
 from app.api.stock import _polygon_price, _MOCK_PRICES
 
 _STOP_WORDS = {
-    "A", "AN", "THE", "SET", "AT", "TO", "ON", "IF", "OR", "AND", "FOR",
-    "UP", "IS", "IN", "MY", "ME", "IT", "BE", "DO", "GO", "SO", "BY",
-    "NO", "US", "OK", "AI", "AM", "PM", "ETF", "CEO", "IPO",
+    "A",
+    "AN",
+    "THE",
+    "SET",
+    "AT",
+    "TO",
+    "ON",
+    "IF",
+    "OR",
+    "AND",
+    "FOR",
+    "UP",
+    "IS",
+    "IN",
+    "MY",
+    "ME",
+    "IT",
+    "BE",
+    "DO",
+    "GO",
+    "SO",
+    "BY",
+    "NO",
+    "US",
+    "OK",
+    "AI",
+    "AM",
+    "PM",
+    "ETF",
+    "CEO",
+    "IPO",
 }
 
 router = APIRouter()
@@ -198,6 +226,7 @@ class ChatResponse(BaseModel):
 
 _MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"]
 
+
 async def _fetch_prices_for_message(message: str) -> str:
     candidates = set(re.findall(r"\b[A-Za-z]{1,5}\b", message))
     tickers = [t.upper() for t in candidates if t.upper() not in _STOP_WORDS and len(t) >= 2][:4]
@@ -223,6 +252,7 @@ async def _build_full_context(user_id: str, message: str) -> str:
     if not (settings.supabase_url and settings.supabase_service_key):
         # Dev mode — just notes from mock (usually empty)
         from app.api.journal_notes import get_notes_context
+
         notes_ctx = await get_notes_context(user_id)
         if notes_ctx:
             parts.append(notes_ctx)
@@ -231,13 +261,13 @@ async def _build_full_context(user_id: str, message: str) -> str:
     try:
         from supabase import create_client
         from app.crypto.keys import decrypt, derive_key
+
         sb = create_client(settings.supabase_url, settings.supabase_service_key)
         key = derive_key(settings.master_key, user_id)
 
         # Portfolios
         portfolios = (
-            sb.table("portfolios").select("id, name, thesis")
-            .eq("user_id", user_id).execute().data
+            sb.table("portfolios").select("id, name, thesis").eq("user_id", user_id).execute().data
         )
         portfolio_map = {p["id"]: p for p in portfolios}
 
@@ -245,7 +275,11 @@ async def _build_full_context(user_id: str, message: str) -> str:
         triggers = (
             sb.table("triggers")
             .select("ticker, target_price, condition, is_active, portfolio_id, notes")
-            .eq("user_id", user_id).order("created_at", desc=True).limit(40).execute().data
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(40)
+            .execute()
+            .data
         )
 
         if portfolios:
@@ -264,7 +298,9 @@ async def _build_full_context(user_id: str, message: str) -> str:
                 note_str = f" — {t['notes'][:60]}" if t.get("notes") else ""
                 port_name = portfolio_map.get(t.get("portfolio_id") or "", {}).get("name", "")
                 folder_str = f" [{port_name}]" if port_name else ""
-                lines.append(f"  {t['ticker']} {t['condition']} ${t['target_price']}{folder_str}{note_str}")
+                lines.append(
+                    f"  {t['ticker']} {t['condition']} ${t['target_price']}{folder_str}{note_str}"
+                )
             parts.append("Active alerts:\n" + "\n".join(lines))
 
         # Watchlist
@@ -273,35 +309,50 @@ async def _build_full_context(user_id: str, message: str) -> str:
             .select("ticker, reasoning, time_horizon, target_price, stop_price")
             .eq("user_id", user_id)
             .in_("status", ["watching", "active_trade"])
-            .order("created_at", desc=True).limit(10).execute().data
+            .order("created_at", desc=True)
+            .limit(10)
+            .execute()
+            .data
         )
         if watchlist:
             lines = []
             for e in watchlist:
                 tp = f" target ${e['target_price']}" if e.get("target_price") else ""
                 sp = f" stop ${e['stop_price']}" if e.get("stop_price") else ""
-                lines.append(f"  {e['ticker']} ({e['time_horizon']}){tp}{sp}: {e['reasoning'][:100]}")
+                lines.append(
+                    f"  {e['ticker']} ({e['time_horizon']}){tp}{sp}: {e['reasoning'][:100]}"
+                )
             parts.append("Watchlist ideas:\n" + "\n".join(lines))
 
         # Open trades
         trades = (
             sb.table("trades")
             .select("ticker, entry_price, shares, confidence_tag, time_horizon")
-            .eq("user_id", user_id).is_("exit_price", "null")
-            .order("created_at", desc=True).limit(10).execute().data
+            .eq("user_id", user_id)
+            .is_("exit_price", "null")
+            .order("created_at", desc=True)
+            .limit(10)
+            .execute()
+            .data
         )
         if trades:
             lines = []
             for t in trades:
                 shares_str = f" x{t['shares']}" if t.get("shares") else ""
-                lines.append(f"  {t['ticker']} @ ${t['entry_price']}{shares_str} [{t['confidence_tag']}]")
+                lines.append(
+                    f"  {t['ticker']} @ ${t['entry_price']}{shares_str} [{t['confidence_tag']}]"
+                )
             parts.append("Open positions:\n" + "\n".join(lines))
 
         # Journal notes
         note_rows = (
             sb.table("journal_notes")
             .select("title, encrypted_content, tags, created_at")
-            .eq("user_id", user_id).order("created_at", desc=True).limit(8).execute().data
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(8)
+            .execute()
+            .data
         )
         if note_rows:
             lines = []
@@ -315,6 +366,7 @@ async def _build_full_context(user_id: str, message: str) -> str:
 
     except Exception:
         from app.api.journal_notes import get_notes_context
+
         notes_ctx = await get_notes_context(user_id)
         if notes_ctx:
             parts.append(notes_ctx)
@@ -334,13 +386,16 @@ async def _call_gemini(system: str, history: list[dict], user_message: str) -> s
         },
     }
     import asyncio
+
     async with httpx.AsyncClient(timeout=25.0) as client:
         for model in _MODELS:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
             for attempt in range(3):
-                r = await client.post(url, json=body, headers={"x-goog-api-key": settings.gemini_api_key})
+                r = await client.post(
+                    url, json=body, headers={"x-goog-api-key": settings.gemini_api_key}
+                )
                 if r.status_code == 429:
-                    await asyncio.sleep(2 ** attempt)
+                    await asyncio.sleep(2**attempt)
                     continue
                 r.raise_for_status()
                 return r.json()["candidates"][0]["content"]["parts"][0]["text"]
@@ -369,10 +424,7 @@ async def chat(body: ChatRequest, user_id: str = Depends(get_current_user)):
     if not settings.gemini_api_key:
         return _fallback_response(body.message)
 
-    history = [
-        {"role": msg.role, "parts": [{"text": msg.text}]}
-        for msg in body.history[-10:]
-    ]
+    history = [{"role": msg.role, "parts": [{"text": msg.text}]} for msg in body.history[-10:]]
     full_context = await _build_full_context(user_id, body.message)
     system = _SYSTEM_PROMPT.replace("{context}", full_context)
 
@@ -386,7 +438,9 @@ async def chat(body: ChatRequest, user_id: str = Depends(get_current_user)):
         return ChatResponse(message=data["message"], actions=actions)
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code == 429:
-            return ChatResponse(message="I'm being rate-limited by the AI provider — wait a moment and try again.")
+            return ChatResponse(
+                message="I'm being rate-limited by the AI provider — wait a moment and try again."
+            )
         raise HTTPException(status_code=502, detail=f"AI error: {exc}")
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"AI error: {exc}")

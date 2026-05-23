@@ -1,4 +1,4 @@
-.PHONY: install dev test lint worker
+.PHONY: install dev test format lint worker
 
 VENV := .venv
 PYTHON := $(VENV)/bin/python
@@ -21,6 +21,10 @@ dev:
 test:
 	cd server && PYTHONPATH=. $(abspath $(PYTEST)) tests/ -v
 	cd client && npm run test -- --run
+
+format:
+	$(VENV)/bin/ruff format server/ worker/
+	cd client && npx prettier --write "src/**/*.{ts,tsx}"
 
 lint:
 	$(VENV)/bin/ruff check server/ worker/

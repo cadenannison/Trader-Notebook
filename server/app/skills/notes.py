@@ -9,6 +9,7 @@ async def get_user_notes(ticker: str, user_id: str) -> list[str]:
 
     try:
         from supabase import create_client
+
         sb = create_client(settings.supabase_url, settings.supabase_service_key)
         rows = (
             sb.table("notes")

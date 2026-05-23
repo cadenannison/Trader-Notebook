@@ -53,15 +53,21 @@ def _group_by(trades: list[dict], field: str) -> list[TagStat]:
     return sorted(result, key=lambda x: x.total, reverse=True)
 
 
-async def _gemini_insights(summary: InsightsSummary, by_confidence: list[TagStat], by_exit: list[TagStat]) -> list[str]:
+async def _gemini_insights(
+    summary: InsightsSummary, by_confidence: list[TagStat], by_exit: list[TagStat]
+) -> list[str]:
     if not settings.gemini_api_key or summary.total_trades == 0:
         return []
     context = {
         "total_closed_trades": summary.total_trades,
         "win_rate_pct": round(summary.win_rate, 1),
         "avg_return_pct": round(summary.avg_return, 2),
-        "best_trade": f"{summary.best_trade_ticker} +{summary.best_trade_pct:.1f}%" if summary.best_trade_pct else None,
-        "worst_trade": f"{summary.worst_trade_ticker} {summary.worst_trade_pct:.1f}%" if summary.worst_trade_pct else None,
+        "best_trade": f"{summary.best_trade_ticker} +{summary.best_trade_pct:.1f}%"
+        if summary.best_trade_pct
+        else None,
+        "worst_trade": f"{summary.worst_trade_ticker} {summary.worst_trade_pct:.1f}%"
+        if summary.worst_trade_pct
+        else None,
         "by_confidence": [c.model_dump() for c in by_confidence],
         "by_exit_reason": [e.model_dump() for e in by_exit],
     }
@@ -84,6 +90,7 @@ async def _gemini_insights(summary: InsightsSummary, by_confidence: list[TagStat
         if r.status_code != 200:
             return []
         import json
+
         raw = r.json()["candidates"][0]["content"]["parts"][0]["text"]
         insights = json.loads(raw)
         return insights if isinstance(insights, list) else []
@@ -97,9 +104,14 @@ async def get_insights(user_id: str = Depends(get_current_user)):
     if not settings.supabase_url:
         return InsightsResponse(
             summary=InsightsSummary(
-                total_trades=0, open_trades=0, win_rate=0, avg_return=0,
-                best_trade_pct=None, worst_trade_pct=None,
-                best_trade_ticker=None, worst_trade_ticker=None,
+                total_trades=0,
+                open_trades=0,
+                win_rate=0,
+                avg_return=0,
+                best_trade_pct=None,
+                worst_trade_pct=None,
+                best_trade_ticker=None,
+                worst_trade_ticker=None,
             ),
             by_confidence_tag=[],
             by_exit_reason=[],
@@ -108,10 +120,13 @@ async def get_insights(user_id: str = Depends(get_current_user)):
         )
 
     from supabase import create_client
+
     sb = create_client(settings.supabase_url, settings.supabase_service_key)
 
     all_trades = sb.table("trades").select("*").eq("user_id", user_id).execute().data or []
-    closed = [t for t in all_trades if t.get("status") == "closed" and t.get("return_pct") is not None]
+    closed = [
+        t for t in all_trades if t.get("status") == "closed" and t.get("return_pct") is not None
+    ]
     open_trades = [t for t in all_trades if t.get("status") == "open"]
 
     wins = [t for t in closed if (t.get("return_pct") or 0) > 0]

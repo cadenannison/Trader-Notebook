@@ -26,7 +26,9 @@ def test_create_note_returns_201(client):
 
 
 def test_create_note_response_shape(client):
-    resp = client.post("/api/notes", json={"ticker": "AAPL", "content": "Services revenue is growing."})
+    resp = client.post(
+        "/api/notes", json={"ticker": "AAPL", "content": "Services revenue is growing."}
+    )
     data = resp.json()
     assert "id" in data
     assert "ticker" in data

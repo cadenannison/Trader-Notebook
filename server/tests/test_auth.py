@@ -17,7 +17,9 @@ _TEST_SECRET = "test-jwt-secret-for-unit-tests-only"  # pragma: allowlist secret
 _FAKE_SUPABASE_URL = "https://fake-project.supabase.co"
 
 
-def _make_token(user_id: str = "test-user-123", secret: str = _TEST_SECRET, aud: str = "authenticated") -> str:
+def _make_token(
+    user_id: str = "test-user-123", secret: str = _TEST_SECRET, aud: str = "authenticated"
+) -> str:
     return pyjwt.encode({"sub": user_id, "aud": aud}, secret, algorithm="HS256")
 
 
@@ -32,6 +34,7 @@ def _mock_jwks(secret: str = _TEST_SECRET) -> MagicMock:
 
 # ── Dev mode (no SUPABASE_URL configured) ────────────────────────────────────
 
+
 def test_dev_mode_no_header_allowed(client):
     resp = client.get("/api/notes")
     assert resp.status_code == 200
@@ -43,6 +46,7 @@ def test_dev_mode_bad_token_still_allowed(client):
 
 
 # ── Production mode (SUPABASE_URL set, JWKS mocked) ──────────────────────────
+
 
 def test_missing_auth_header_returns_401(client):
     with patch.object(settings, "supabase_url", _FAKE_SUPABASE_URL):
