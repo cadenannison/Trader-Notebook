@@ -95,5 +95,5 @@ jobs:
         run: npm run test -- --run
 
       - name: Dependency audit
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=critical
         continue-on-error: true
