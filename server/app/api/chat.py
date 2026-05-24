@@ -194,6 +194,36 @@ _TOOL_DECLARATIONS = [
                     },
                 },
             },
+            {
+                "name": "calculate_position_size",
+                "description": "Calculate how many shares to buy based on account size, risk tolerance, entry price, and stop loss. Use whenever the user asks about position sizing, how many shares to buy, how much to risk, or mentions an entry and stop price together.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "ticker": {
+                            "type": "string",
+                            "description": "Stock ticker (optional)",
+                        },
+                        "account_size": {
+                            "type": "number",
+                            "description": "Total account size in dollars (e.g. 50000)",
+                        },
+                        "risk_pct": {
+                            "type": "number",
+                            "description": "Percentage of account to risk on this trade (default 1.0)",
+                        },
+                        "entry_price": {
+                            "type": "number",
+                            "description": "Planned entry price per share",
+                        },
+                        "stop_price": {
+                            "type": "number",
+                            "description": "Stop loss price per share",
+                        },
+                    },
+                    "required": ["account_size", "entry_price", "stop_price"],
+                },
+            },
         ]
     }
 ]
@@ -234,6 +264,7 @@ Available tools and when to use them:
 - get_positions(ticker?): Open trades. Use for "am I holding X?", "what's my X position?".
 - get_watchlist(ticker?): Watchlist ideas. Use for "is X on my watchlist?", "my X idea".
 - get_trade_history(ticker?, limit?): Closed trades with P&L. Use for "how have my X trades done?", "what's my win rate on X?", performance questions.
+- calculate_position_size(account_size, entry_price, stop_price, ticker?, risk_pct?): Position sizing calculator. Use whenever the user mentions an entry + stop price together, asks "how many shares", or asks how much to risk. If the user hasn't provided account_size, ask for it first.
 
 Cross-tool synthesis: For rich questions like "should I add to my NVDA?" or "how am I doing on TSLA?", call multiple tools (get_positions + get_stock_price + get_news + get_notes) and synthesize a complete answer. Don't call the same tool twice for the same ticker.
 
@@ -316,6 +347,9 @@ User: "alert me if NVDA moves 5% in either direction"
 
 User: "warn me before TSLA earnings"
 → {"message": "Earnings warning set for TSLA — you'll get an alert the day earnings are due.", "actions": [{"type": "add_alert", "ticker": "TSLA", "trigger_type": "earnings_warning"}]}
+
+User: "I have a $50k account, want to risk 1% on NVDA, entry at $900, stop at $850"
+→ [calls calculate_position_size(account_size=50000, risk_pct=1.0, entry_price=900, stop_price=850, ticker="NVDA")] → {"message": "Position size for NVDA: 10 shares. You're risking $500 (1% of $50k) with a $50/share stop. Total exposure: $9,000.", "actions": []}
 
 User: "what's in my AI Infrastructure portfolio?"
 → {"message": "Your AI Infrastructure portfolio has NVDA above $900 and AMD above $180. Thesis: betting on compute buildout through 2026.", "actions": []}
@@ -805,6 +839,47 @@ async def _execute_tool(name: str, args: dict, user_id: str) -> tuple[dict, Tool
             return {"trades": [], "error": str(e)}, ToolUsed(
                 name=name, ticker=ticker, summary="error fetching trades"
             )
+
+    if name == "calculate_position_size":
+        ticker = args.get("ticker", "").upper().strip()
+        account_size = args.get("account_size")
+        risk_pct = float(args.get("risk_pct") or 1.0)
+        entry_price = args.get("entry_price")
+        stop_price = args.get("stop_price")
+
+        if not all([account_size, entry_price, stop_price]):
+            return (
+                {"error": "Need account_size, entry_price, and stop_price to calculate position size."},
+                ToolUsed(name=name, ticker=ticker or None, summary="missing params"),
+            )
+
+        risk_per_share = abs(float(entry_price) - float(stop_price))
+        if risk_per_share == 0:
+            return (
+                {"error": "entry_price and stop_price cannot be equal."},
+                ToolUsed(name=name, ticker=ticker or None, summary="invalid stop"),
+            )
+
+        risk_amount = float(account_size) * (risk_pct / 100)
+        raw_shares = risk_amount / risk_per_share
+        shares = int(raw_shares)  # floor to whole shares
+        dollar_exposure = shares * float(entry_price)
+        actual_risk = shares * risk_per_share
+
+        result = {
+            "ticker": ticker or None,
+            "account_size": float(account_size),
+            "risk_pct": risk_pct,
+            "risk_amount": round(risk_amount, 2),
+            "entry_price": float(entry_price),
+            "stop_price": float(stop_price),
+            "risk_per_share": round(risk_per_share, 2),
+            "suggested_shares": shares,
+            "dollar_exposure": round(dollar_exposure, 2),
+            "actual_risk": round(actual_risk, 2),
+        }
+        summary = f"{shares} shares · ${round(actual_risk):.0f} at risk"
+        return result, ToolUsed(name=name, ticker=ticker or None, summary=summary)
 
     return {"error": f"Unknown tool: {name}"}, ToolUsed(name=name, summary="unknown tool")
 

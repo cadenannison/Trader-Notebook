@@ -1,3 +1,4 @@
+import asyncio
 import re
 from datetime import datetime, timezone
 
@@ -138,6 +139,27 @@ async def get_stock_price(ticker: str, request: Request):
             "change_pct": 0.0,
         },
     )
+
+
+@router.get("/stock/prices")
+@limiter.limit("30/minute")
+async def get_stock_prices(tickers: str, request: Request):
+    ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+
+    async def _safe_price(ticker: str):
+        try:
+            result = await _polygon_price(ticker)
+            if result:
+                return ticker, {"price": result["price"], "change_pct": result["change_pct"]}
+        except Exception:
+            pass
+        mock = _MOCK_PRICES.get(ticker)
+        if mock:
+            return ticker, {"price": mock["price"], "change_pct": mock["change_pct"]}
+        return ticker, None
+
+    results = await asyncio.gather(*(_safe_price(t) for t in ticker_list))
+    return {ticker: data for ticker, data in results if data is not None}
 
 
 @router.get("/stock/validate")

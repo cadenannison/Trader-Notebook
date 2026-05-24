@@ -10,7 +10,6 @@ AI-powered trading journal. Log trades, track your watchlist, set price alerts, 
 
 - Python 3.13
 - Node.js 20+
-- A [Supabase](https://supabase.com) project (free tier works)
 
 ---
 

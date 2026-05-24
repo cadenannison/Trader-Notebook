@@ -1,0 +1,1 @@
+ALTER TABLE trades ADD COLUMN IF NOT EXISTS post_trade_notes TEXT;

@@ -7,6 +7,7 @@ import {
   BarChart2,
   Bell,
   Check,
+  Calculator,
   Eye,
   FileText,
   Mic,
@@ -32,6 +33,7 @@ import {
   useWatchlist,
 } from "@/hooks/useWatchlist";
 import { PreTradeChecklist } from "@/components/PreTradeChecklist";
+import { PostTradeDebrief } from "@/components/PostTradeDebrief";
 import {
   useCreateTrade,
   useDeleteTrade,
@@ -70,6 +72,7 @@ const TOOL_META: Record<
   get_alerts: { label: "Alerts", Icon: Bell },
   get_positions: { label: "Positions", Icon: BarChart2 },
   get_watchlist: { label: "Watchlist", Icon: Eye },
+  calculate_position_size: { label: "Position size", Icon: Calculator },
 };
 
 function PriceCard({
@@ -165,6 +168,10 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [pendingTradeChecklist, setPendingTradeChecklist] = useState<{
+    act: ChatAction;
+    resolve: (notes: string | null) => void;
+  } | null>(null);
+  const [pendingDebrief, setPendingDebrief] = useState<{
     act: ChatAction;
     resolve: (notes: string | null) => void;
   } | null>(null);
@@ -414,10 +421,14 @@ export default function ChatPage() {
           act.exit_reason &&
           act.trade_id
         ) {
+          const debriefNotes = await new Promise<string | null>((resolve) => {
+            setPendingDebrief({ act, resolve });
+          });
           await closeTrade({
             id: act.trade_id,
             exit_price: act.exit_price,
             exit_reason: act.exit_reason as ExitReason,
+            post_trade_notes: debriefNotes ?? undefined,
           });
           markCreated();
         } else if (act.type === "create_portfolio" && act.name) {
@@ -775,6 +786,20 @@ export default function ChatPage() {
           </p>
         </div>
       </div>
+
+      {pendingDebrief && (
+        <PostTradeDebrief
+          act={pendingDebrief.act}
+          onConfirm={(notes) => {
+            pendingDebrief.resolve(notes);
+            setPendingDebrief(null);
+          }}
+          onCancel={() => {
+            pendingDebrief.resolve(null);
+            setPendingDebrief(null);
+          }}
+        />
+      )}
 
       {pendingTradeChecklist && (
         <PreTradeChecklist

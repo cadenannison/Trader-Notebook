@@ -1,0 +1,42 @@
+name: Weekly Digest
+
+on:
+  schedule:
+    - cron: "0 21 * * 5"  # Friday 9 PM UTC (5 PM ET)
+  workflow_dispatch:
+
+concurrency:
+  group: weekly-digest
+  cancel-in-progress: false
+
+jobs:
+  weekly-digest:
+    name: Send weekly digests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-worker-${{ hashFiles('worker/requirements.txt') }}
+          restore-keys: pip-worker-
+
+      - name: Install dependencies
+        run: pip install -r worker/requirements.txt
+
+      - name: Run weekly digest
+        run: python worker/weekly_digest.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}

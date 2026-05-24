@@ -57,14 +57,17 @@ export function useCloseTrade() {
       id,
       exit_price,
       exit_reason,
+      post_trade_notes,
     }: {
       id: string;
       exit_price: number;
       exit_reason: ExitReason;
+      post_trade_notes?: string;
     }): Promise<Trade> => {
       const res = await api.put(`/api/trades/${id}/close`, {
         exit_price,
         exit_reason,
+        ...(post_trade_notes != null ? { post_trade_notes } : {}),
       });
       return res.data;
     },

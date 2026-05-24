@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { supabase } from "@/lib/supabase";
 import api from "@/lib/api";
@@ -136,12 +136,48 @@ export default function SettingsPage() {
   const [usernameSaving, setUsernameSaving] = useState(false);
   const [usernameSaved, setUsernameSaved] = useState(false);
 
+  // Trading profile
+  const [accountSize, setAccountSize] = useState("");
+  const [riskPct, setRiskPct] = useState("1");
+  const [tradingStyle, setTradingStyle] = useState("swing");
+  const [briefingEnabled, setBriefingEnabled] = useState(true);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+
   // Export
   const [exporting, setExporting] = useState(false);
 
   // Delete
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Load current user metadata on mount
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) return;
+      const meta = data.user.user_metadata ?? {};
+      if (meta.username) setUsername(meta.username);
+      if (meta.account_size != null) setAccountSize(String(meta.account_size));
+      if (meta.risk_pct_per_trade != null) setRiskPct(String(meta.risk_pct_per_trade));
+      if (meta.trading_style) setTradingStyle(meta.trading_style);
+      if (meta.briefing_enabled != null) setBriefingEnabled(meta.briefing_enabled);
+    });
+  }, []);
+
+  async function handleSaveProfile() {
+    setProfileSaving(true);
+    await supabase.auth.updateUser({
+      data: {
+        account_size: accountSize ? parseFloat(accountSize) : null,
+        risk_pct_per_trade: parseFloat(riskPct) || 1,
+        trading_style: tradingStyle,
+        briefing_enabled: briefingEnabled,
+      },
+    });
+    setProfileSaving(false);
+    setProfileSaved(true);
+    setTimeout(() => setProfileSaved(false), 2000);
+  }
 
   async function handleSaveUsername() {
     if (!username.trim()) return;
@@ -222,6 +258,79 @@ export default function SettingsPage() {
               </button>
             </div>
           </SettingsRow>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection title="Trading profile">
+        <div className="bg-white border border-brand-subtle rounded-xl divide-y divide-brand-subtle px-4">
+          <SettingsRow
+            label="Account size"
+            description="Used by the position sizing calculator in chat."
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm text-slate-500">$</span>
+              <input
+                type="number"
+                value={accountSize}
+                onChange={(e) => setAccountSize(e.target.value)}
+                placeholder="e.g. 50000"
+                className="w-32 text-sm border border-brand-border rounded-lg px-3 py-1.5 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 bg-app-bg text-slate-800 placeholder:text-slate-400"
+              />
+            </div>
+          </SettingsRow>
+          <SettingsRow
+            label="Risk per trade"
+            description="Maximum % of account to risk on a single trade."
+          >
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                value={riskPct}
+                onChange={(e) => setRiskPct(e.target.value)}
+                placeholder="1"
+                min={0.1}
+                max={10}
+                step={0.1}
+                className="w-20 text-sm border border-brand-border rounded-lg px-3 py-1.5 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 bg-app-bg text-slate-800 placeholder:text-slate-400"
+              />
+              <span className="text-sm text-slate-500">%</span>
+            </div>
+          </SettingsRow>
+          <SettingsRow
+            label="Trading style"
+            description="Affects AI coaching tone and suggestions."
+          >
+            <div className="flex gap-1.5">
+              {(["day", "swing", "position"] as const).map((style) => (
+                <button
+                  key={style}
+                  onClick={() => setTradingStyle(style)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors capitalize ${
+                    tradingStyle === style
+                      ? "bg-brand text-white"
+                      : "border border-slate-200 text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  {style.charAt(0).toUpperCase() + style.slice(1)}
+                </button>
+              ))}
+            </div>
+          </SettingsRow>
+          <SettingsRow
+            label="Daily briefing"
+            description="Receive a personalized morning email before market open."
+          >
+            <Toggle checked={briefingEnabled} onChange={setBriefingEnabled} />
+          </SettingsRow>
+          <div className="py-3">
+            <button
+              onClick={handleSaveProfile}
+              disabled={profileSaving}
+              className="w-full py-2 text-sm font-semibold text-white bg-brand hover:bg-brand-hover rounded-xl transition-colors disabled:opacity-50"
+            >
+              {profileSaved ? "Saved!" : profileSaving ? "Saving…" : "Save trading profile"}
+            </button>
+          </div>
         </div>
       </SettingsSection>
 

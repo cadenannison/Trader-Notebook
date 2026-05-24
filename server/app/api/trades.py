@@ -35,6 +35,7 @@ class CreateTradeRequest(BaseModel):
 class CloseTradeRequest(BaseModel):
     exit_price: float
     exit_reason: str
+    post_trade_notes: Optional[str] = None
 
 
 class UpdateTradeRequest(BaseModel):
@@ -169,6 +170,7 @@ async def close_trade(
             "return_pct": return_pct,
             "status": "closed",
             "closed_at": now,
+            **({"post_trade_notes": body.post_trade_notes} if body.post_trade_notes is not None else {}),
         }
         result = (
             sb.table("trades").update(updates).eq("id", trade_id).eq("user_id", user_id).execute()
@@ -187,15 +189,16 @@ async def close_trade(
         if trade["id"] == trade_id and trade["user_id"] == user_id:
             ep = trade["entry_price"]
             return_pct = round((body.exit_price - ep) / ep * 100, 4) if ep else 0.0
-            trade.update(
-                {
-                    "exit_price": body.exit_price,
-                    "exit_reason": body.exit_reason,
-                    "return_pct": return_pct,
-                    "status": "closed",
-                    "closed_at": now,
-                }
-            )
+            mock_updates = {
+                "exit_price": body.exit_price,
+                "exit_reason": body.exit_reason,
+                "return_pct": return_pct,
+                "status": "closed",
+                "closed_at": now,
+            }
+            if body.post_trade_notes is not None:
+                mock_updates["post_trade_notes"] = body.post_trade_notes
+            trade.update(mock_updates)
             return trade
     raise HTTPException(status_code=404, detail="Trade not found")
 

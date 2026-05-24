@@ -21,9 +21,9 @@ import {
   useTriggers,
 } from "@/hooks/useTriggers";
 import { useTriggerLogs } from "@/hooks/useTriggerLogs";
+import { useStockPrices } from "@/hooks/useStockPrices";
 import { usePortfolios } from "@/hooks/usePortfolios";
 import { useUndoStore } from "@/store/undoStore";
-import { MOCK_PRICES } from "@/mocks/prices";
 import type { Portfolio, PriceTrigger, TriggerLog } from "@shared/types";
 
 type Signal = "confluence" | "triggered" | "near" | "monitoring";
@@ -545,6 +545,7 @@ function TickerGroupCard({
   triggers,
   portfolios,
   logs,
+  priceData,
   onEditTrigger,
   onDeleteTrigger,
   onDeleteAll,
@@ -553,12 +554,12 @@ function TickerGroupCard({
   triggers: PriceTrigger[];
   portfolios: Portfolio[];
   logs: TriggerLog[];
+  priceData?: { price: number; change_pct: number };
   onEditTrigger: (t: PriceTrigger) => void;
   onDeleteTrigger: (t: PriceTrigger) => void;
   onDeleteAll: () => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const priceData = MOCK_PRICES[ticker];
   const currentPrice = priceData?.price ?? 0;
   const signal = getSignal(triggers, currentPrice);
   const styles = SIGNAL_STYLES[signal];
@@ -679,6 +680,12 @@ export default function AlertsPage() {
   const { data: triggers = [], refetch } = useTriggers();
   const { data: portfolios = [] } = usePortfolios();
   const { data: triggerLogs = [] } = useTriggerLogs();
+
+  const uniqueTickers = useMemo(
+    () => Array.from(new Set(triggers.map((t) => t.ticker))),
+    [triggers]
+  );
+  const { data: livePrices = {}, refetch: refetchPrices } = useStockPrices(uniqueTickers);
   const { mutate: deleteTrigger, mutateAsync: deleteTriggerAsync } =
     useDeleteTrigger();
   const { mutateAsync: createTrigger } = useCreateTrigger();
@@ -704,14 +711,14 @@ export default function AlertsPage() {
     entries.sort(([aT, aTs], [bT, bTs]) => {
       if (sort === "alpha") return aT.localeCompare(bT);
       if (sort === "count") return bTs.length - aTs.length;
-      const aP = MOCK_PRICES[aT]?.price ?? 0;
-      const bP = MOCK_PRICES[bT]?.price ?? 0;
+      const aP = livePrices[aT]?.price ?? 0;
+      const bP = livePrices[bT]?.price ?? 0;
       return (
         SIGNAL_ORDER[getSignal(aTs, aP)] - SIGNAL_ORDER[getSignal(bTs, bP)]
       );
     });
     return entries;
-  }, [triggers, search, sort]);
+  }, [triggers, search, sort, livePrices]);
 
   return (
     <>
@@ -739,7 +746,7 @@ export default function AlertsPage() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => refetch()}
+              onClick={() => { refetch(); refetchPrices(); }}
               className="flex items-center gap-1.5 text-xs font-medium text-brand hover:text-brand-hover border border-brand-border hover:border-brand rounded-lg px-3 py-2 transition-colors"
             >
               <RefreshCw size={12} />
@@ -826,6 +833,7 @@ export default function AlertsPage() {
                 triggers={tickerTriggers}
                 portfolios={portfolios}
                 logs={triggerLogs.filter((l) => l.ticker === ticker)}
+                priceData={livePrices[ticker]}
                 onEditTrigger={setEditingTrigger}
                 onDeleteTrigger={(t) => {
                   const snap = { ...t };
