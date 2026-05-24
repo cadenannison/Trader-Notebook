@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { clsx } from "clsx";
 import {
+  Clock,
   FolderOpen,
   Pencil,
   Plus,
@@ -19,17 +20,20 @@ import {
   useUpdateTrigger,
   useTriggers,
 } from "@/hooks/useTriggers";
+import { useTriggerLogs } from "@/hooks/useTriggerLogs";
 import { usePortfolios } from "@/hooks/usePortfolios";
 import { useUndoStore } from "@/store/undoStore";
 import { MOCK_PRICES } from "@/mocks/prices";
-import type { Portfolio, PriceTrigger } from "@shared/types";
+import type { Portfolio, PriceTrigger, TriggerLog } from "@shared/types";
 
 type Signal = "confluence" | "triggered" | "near" | "monitoring";
 type SortMode = "alpha" | "signal" | "count";
 
 // ─── Proximity helpers ────────────────────────────────────────────────────────
 
-function getProximityPct(trigger: PriceTrigger, currentPrice: number): number {
+function getProximityPct(trigger: PriceTrigger, currentPrice: number): number | null {
+  if (trigger.trigger_type !== "price_level" && trigger.trigger_type != null) return null;
+  if (trigger.target_price == null || trigger.condition == null) return null;
   if (trigger.condition === "above") {
     return ((trigger.target_price - currentPrice) / currentPrice) * 100;
   }
@@ -37,7 +41,9 @@ function getProximityPct(trigger: PriceTrigger, currentPrice: number): number {
 }
 
 function getSignal(triggers: PriceTrigger[], currentPrice: number): Signal {
-  const proximities = triggers.map((t) => getProximityPct(t, currentPrice));
+  const proximities = triggers
+    .map((t) => getProximityPct(t, currentPrice))
+    .filter((p): p is number => p !== null);
   const triggered = proximities.filter((p) => p <= 0).length;
   const near = proximities.filter((p) => p > 0 && p <= 5).length;
   if ((triggered > 0 && near > 0) || triggered >= 2 || near >= 2)
@@ -59,10 +65,12 @@ function getSmartAnalysis(
   if (fired.length > 0) {
     return `A watched level has been hit. Check if price is holding or reversing before logging a trade.`;
   }
-  const parts = active.map((t) => {
-    const pct = Math.abs(getProximityPct(t, currentPrice)).toFixed(1);
-    return `${pct}% ${t.condition === "above" ? "below" : "above"} your $${t.target_price.toFixed(0)} ${t.condition} target`;
-  });
+  const parts = active
+    .filter((t) => t.trigger_type === "price_level" || !t.trigger_type)
+    .map((t) => {
+      const pct = Math.abs(getProximityPct(t, currentPrice) ?? 0).toFixed(1);
+      return `${pct}% ${t.condition === "above" ? "below" : "above"} your $${t.target_price!.toFixed(0)} ${t.condition} target`;
+    });
   return parts.length > 0
     ? `Price is ${parts.join(" and ")}.`
     : "Monitoring price action.";
@@ -106,10 +114,10 @@ function AlertModal({
   const isEdit = !!trigger;
   const [ticker, setTicker] = useState(trigger?.ticker ?? "");
   const [targetPrice, setTargetPrice] = useState(
-    trigger ? String(trigger.target_price) : ""
+    trigger?.target_price != null ? String(trigger.target_price) : ""
   );
   const [condition, setCondition] = useState<"above" | "below">(
-    trigger?.condition ?? "above"
+    (trigger?.condition ?? "above") as "above" | "below"
   );
   const [autoDisarm, setAutoDisarm] = useState(trigger?.auto_disarm ?? true);
   const [cooldown, setCooldown] = useState(
@@ -405,59 +413,127 @@ function AlertRow({
   trigger,
   currentPrice,
   portfolios,
+  logs,
   onEdit,
   onDelete,
 }: {
   trigger: PriceTrigger;
   currentPrice: number;
   portfolios: Portfolio[];
+  logs: TriggerLog[];
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const [showHistory, setShowHistory] = useState(false);
   const pct = getProximityPct(trigger, currentPrice);
-  const icon = trigger.condition === "above" ? "↑" : "↓";
+  const tType = trigger.trigger_type ?? "price_level";
+  const icon =
+    tType === "pct_move" ? "%" : tType === "earnings_warning" ? "E" : trigger.condition === "above" ? "↑" : "↓";
+
+  const priceLabel =
+    tType === "pct_move"
+      ? `±${trigger.threshold_pct}% move`
+      : tType === "earnings_warning"
+      ? "Earnings"
+      : trigger.target_price != null
+      ? `$${trigger.target_price.toFixed(2)}`
+      : "—";
 
   return (
-    <div className="flex items-center gap-2 py-2.5 group pr-3">
-      <span className="text-slate-400 text-base w-4 shrink-0">{icon}</span>
-      <span className="text-sm font-semibold text-slate-800 tabular-nums w-20 shrink-0">
-        ${trigger.target_price.toFixed(2)}
-      </span>
-      <span className="text-xs text-slate-400 italic flex-1 truncate min-w-0">
-        {trigger.notes || (trigger.is_active ? "Watching…" : "Fired")}
-      </span>
-      <ProximityBar pct={pct} />
-      <span
-        className={clsx(
-          "text-[10.5px] font-semibold tabular-nums w-16 text-right shrink-0",
-          pct <= 0
-            ? "text-green-600"
-            : pct <= 5
-              ? "text-amber-600"
-              : "text-slate-400"
-        )}
-      >
-        {pct <= 0 ? "Triggered" : `${pct.toFixed(1)}% away`}
-      </span>
+    <div>
+      <div className="flex items-center gap-2 py-2.5 group pr-3">
+        <span className="text-slate-400 text-base w-4 shrink-0">{icon}</span>
+        <span className="text-sm font-semibold text-slate-800 tabular-nums w-20 shrink-0">
+          {priceLabel}
+        </span>
+        <span className="text-xs text-slate-400 italic flex-1 truncate min-w-0">
+          {trigger.notes || (trigger.is_active ? "Watching…" : "Fired")}
+        </span>
+        {pct !== null ? <ProximityBar pct={pct} /> : <div className="w-20 shrink-0" />}
+        <span
+          className={clsx(
+            "text-[10.5px] font-semibold tabular-nums w-16 text-right shrink-0",
+            pct === null
+              ? "text-slate-400"
+              : pct <= 0
+                ? "text-green-600"
+                : pct <= 5
+                  ? "text-amber-600"
+                  : "text-slate-400"
+          )}
+        >
+          {pct === null ? "Active" : pct <= 0 ? "Triggered" : `${pct.toFixed(1)}% away`}
+        </span>
 
-      {/* Action buttons — always visible */}
-      <div className="flex items-center gap-0.5 shrink-0 mr-4">
-        <PortfolioAssign trigger={trigger} portfolios={portfolios} />
-        <button
-          onClick={onEdit}
-          title="Edit alert"
-          className="p-1 rounded-md text-slate-300 hover:text-brand transition-colors"
-        >
-          <Pencil size={15} />
-        </button>
-        <button
-          onClick={onDelete}
-          title="Delete alert"
-          className="p-1 rounded-md text-slate-300 hover:text-red-500 transition-colors"
-        >
-          <Trash2 size={14} />
-        </button>
+        <div className="flex items-center gap-0.5 shrink-0 mr-4">
+          <button
+            onClick={() => setShowHistory((v) => !v)}
+            title="Fire history"
+            className={clsx(
+              "p-1 rounded-md transition-colors relative",
+              showHistory ? "text-brand" : "text-slate-300 hover:text-slate-500"
+            )}
+          >
+            <Clock size={14} />
+            {logs.length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-brand rounded-full text-[7px] text-white flex items-center justify-center leading-none">
+                {logs.length > 9 ? "9" : logs.length}
+              </span>
+            )}
+          </button>
+          <PortfolioAssign trigger={trigger} portfolios={portfolios} />
+          <button
+            onClick={onEdit}
+            title="Edit alert"
+            className="p-1 rounded-md text-slate-300 hover:text-brand transition-colors"
+          >
+            <Pencil size={15} />
+          </button>
+          <button
+            onClick={onDelete}
+            title="Delete alert"
+            className="p-1 rounded-md text-slate-300 hover:text-red-500 transition-colors"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
+
+      {showHistory && (
+        <div className="mb-2.5 ml-6 mr-4 rounded-lg border border-slate-100 bg-slate-50 divide-y divide-slate-100">
+          {logs.length === 0 ? (
+            <p className="px-3 py-2.5 text-xs text-slate-400 text-center">
+              No fires recorded yet.
+            </p>
+          ) : (
+            logs.slice(0, 5).map((log) => {
+              const date = new Date(log.fired_at).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+              });
+              return (
+                <div key={log.id} className="px-3 py-2 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10.5px] font-semibold text-slate-600">{date}</span>
+                    {log.price_at_fire != null && (
+                      <span className="text-[10.5px] tabular-nums text-slate-500">
+                        ${log.price_at_fire.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                  {log.summary && (
+                    <p className="text-[10.5px] text-slate-400 leading-relaxed line-clamp-2">
+                      {log.summary}
+                    </p>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -468,6 +544,7 @@ function TickerGroupCard({
   ticker,
   triggers,
   portfolios,
+  logs,
   onEditTrigger,
   onDeleteTrigger,
   onDeleteAll,
@@ -475,6 +552,7 @@ function TickerGroupCard({
   ticker: string;
   triggers: PriceTrigger[];
   portfolios: Portfolio[];
+  logs: TriggerLog[];
   onEditTrigger: (t: PriceTrigger) => void;
   onDeleteTrigger: (t: PriceTrigger) => void;
   onDeleteAll: () => void;
@@ -569,6 +647,7 @@ function TickerGroupCard({
             trigger={t}
             currentPrice={currentPrice}
             portfolios={portfolios}
+            logs={logs.filter((l) => l.trigger_id === t.id)}
             onEdit={() => onEditTrigger(t)}
             onDelete={() => onDeleteTrigger(t)}
           />
@@ -599,6 +678,7 @@ const SIGNAL_ORDER: Record<Signal, number> = {
 export default function AlertsPage() {
   const { data: triggers = [], refetch } = useTriggers();
   const { data: portfolios = [] } = usePortfolios();
+  const { data: triggerLogs = [] } = useTriggerLogs();
   const { mutate: deleteTrigger, mutateAsync: deleteTriggerAsync } =
     useDeleteTrigger();
   const { mutateAsync: createTrigger } = useCreateTrigger();
@@ -745,6 +825,7 @@ export default function AlertsPage() {
                 ticker={ticker}
                 triggers={tickerTriggers}
                 portfolios={portfolios}
+                logs={triggerLogs.filter((l) => l.ticker === ticker)}
                 onEditTrigger={setEditingTrigger}
                 onDeleteTrigger={(t) => {
                   const snap = { ...t };
@@ -752,7 +833,11 @@ export default function AlertsPage() {
                   const ids = { current: snap.id };
                   deleteTrigger(t.id);
                   pushUndo({
-                    label: `Alert deleted: ${t.ticker} ${t.condition} $${t.target_price}`,
+                    label: t.trigger_type === "pct_move"
+                      ? `Alert deleted: ${t.ticker} ±${t.threshold_pct}% move`
+                      : t.trigger_type === "earnings_warning"
+                      ? `Alert deleted: ${t.ticker} earnings warning`
+                      : `Alert deleted: ${t.ticker} ${t.condition} $${t.target_price}`,
                     undo: async () => {
                       const created = await createTrigger({
                         ticker: snap.ticker,

@@ -58,10 +58,16 @@ def _get_sb():
     return create_client(settings.supabase_url, settings.supabase_service_key)
 
 
+_VALID_TRIGGER_TYPES = {"price_level", "pct_move", "earnings_warning"}
+
+
 class CreateTriggerRequest(BaseModel):
     ticker: str
-    target_price: float
-    condition: str
+    target_price: Optional[float] = None
+    condition: Optional[str] = None  # required for price_level / pct_move
+    trigger_type: str = "price_level"
+    threshold_pct: Optional[float] = None  # required for pct_move
+    reference_price: Optional[float] = None  # baseline for pct_move; defaults to target_price if omitted
     auto_disarm: bool = True
     cooldown_hours: int = 4
     notes: Optional[str] = None
@@ -71,6 +77,9 @@ class CreateTriggerRequest(BaseModel):
 class UpdateTriggerRequest(BaseModel):
     target_price: Optional[float] = None
     condition: Optional[str] = None
+    trigger_type: Optional[str] = None
+    threshold_pct: Optional[float] = None
+    reference_price: Optional[float] = None
     auto_disarm: Optional[bool] = None
     cooldown_hours: Optional[int] = None
     notes: Optional[str] = None
@@ -94,8 +103,21 @@ async def get_triggers(ticker: Optional[str] = None, user_id: str = Depends(get_
 
 @router.post("/triggers", status_code=201)
 async def create_trigger(body: CreateTriggerRequest, user_id: str = Depends(get_current_user)):
-    if body.condition not in ("above", "below"):
-        raise HTTPException(status_code=400, detail="condition must be 'above' or 'below'")
+    if body.trigger_type not in _VALID_TRIGGER_TYPES:
+        raise HTTPException(status_code=400, detail=f"trigger_type must be one of {sorted(_VALID_TRIGGER_TYPES)}")
+
+    if body.trigger_type == "price_level":
+        if body.target_price is None:
+            raise HTTPException(status_code=400, detail="target_price is required for price_level triggers")
+        if body.condition not in ("above", "below"):
+            raise HTTPException(status_code=400, detail="condition must be 'above' or 'below'")
+
+    if body.trigger_type == "pct_move":
+        if not body.threshold_pct or body.threshold_pct <= 0:
+            raise HTTPException(status_code=400, detail="threshold_pct must be a positive number for pct_move triggers")
+        if body.condition not in ("above", "below", None):
+            raise HTTPException(status_code=400, detail="condition must be 'above', 'below', or omitted for pct_move")
+
     sb = _get_sb()
     now = datetime.now(timezone.utc).isoformat()
     row = {
@@ -103,6 +125,9 @@ async def create_trigger(body: CreateTriggerRequest, user_id: str = Depends(get_
         "ticker": body.ticker.upper(),
         "target_price": body.target_price,
         "condition": body.condition,
+        "trigger_type": body.trigger_type,
+        "threshold_pct": body.threshold_pct,
+        "reference_price": body.reference_price,
         "is_active": True,
         "auto_disarm": body.auto_disarm,
         "cooldown_hours": body.cooldown_hours,
@@ -168,6 +193,8 @@ async def update_trigger(
 ):
     if body.condition is not None and body.condition not in ("above", "below"):
         raise HTTPException(status_code=400, detail="condition must be 'above' or 'below'")
+    if body.trigger_type is not None and body.trigger_type not in _VALID_TRIGGER_TYPES:
+        raise HTTPException(status_code=400, detail=f"trigger_type must be one of {sorted(_VALID_TRIGGER_TYPES)}")
 
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
@@ -191,3 +218,20 @@ async def update_trigger(
             t.update(updates)
             return t
     raise HTTPException(status_code=404, detail="Trigger not found")
+
+
+@router.get("/trigger_logs")
+async def get_trigger_logs(user_id: str = Depends(get_current_user)):
+    """Return all fire-history logs for the current user, newest first."""
+    sb = _get_sb()
+    if sb is None:
+        return []
+    result = (
+        sb.table("trigger_logs")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("fired_at", desc=True)
+        .limit(200)
+        .execute()
+    )
+    return result.data or []

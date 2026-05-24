@@ -161,7 +161,7 @@ async def close_trade(
 
         entry_price = existing.data[0]["entry_price"]
         watchlist_entry_id = existing.data[0].get("watchlist_entry_id")
-        return_pct = round((body.exit_price - entry_price) / entry_price * 100, 4)
+        return_pct = round((body.exit_price - entry_price) / entry_price * 100, 4) if entry_price else 0.0
 
         updates = {
             "exit_price": body.exit_price,
@@ -185,9 +185,8 @@ async def close_trade(
     # Mock path
     for trade in _mock_trades:
         if trade["id"] == trade_id and trade["user_id"] == user_id:
-            return_pct = round(
-                (body.exit_price - trade["entry_price"]) / trade["entry_price"] * 100, 4
-            )
+            ep = trade["entry_price"]
+            return_pct = round((body.exit_price - ep) / ep * 100, 4) if ep else 0.0
             trade.update(
                 {
                     "exit_price": body.exit_price,
@@ -243,7 +242,7 @@ async def update_trade(
         if row["status"] == "closed":
             new_entry = updates.get("entry_price", row["entry_price"])
             new_exit = updates.get("exit_price", row["exit_price"])
-            if new_exit is not None:
+            if new_exit is not None and new_entry:
                 updates["return_pct"] = round((new_exit - new_entry) / new_entry * 100, 4)
 
         result = (
@@ -254,10 +253,9 @@ async def update_trade(
     for trade in _mock_trades:
         if trade["id"] == trade_id and trade["user_id"] == user_id:
             trade.update(updates)
-            if trade["status"] == "closed" and trade.get("exit_price") and trade.get("entry_price"):
-                trade["return_pct"] = round(
-                    (trade["exit_price"] - trade["entry_price"]) / trade["entry_price"] * 100, 4
-                )
+            ep = trade.get("entry_price")
+            if trade["status"] == "closed" and trade.get("exit_price") and ep:
+                trade["return_pct"] = round((trade["exit_price"] - ep) / ep * 100, 4)
             return trade
     raise HTTPException(status_code=404, detail="Trade not found")
 

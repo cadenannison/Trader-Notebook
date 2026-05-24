@@ -1,5 +1,5 @@
 # Trader Notebook — Status
-> Last updated: 2026-05-21
+> Last updated: 2026-05-23
 
 ---
 
@@ -12,7 +12,7 @@
 | DB / Auth | ✅ Supabase | jhmzuielhxjasvgnheuy.supabase.co |
 | Cron worker | ✅ GitHub Actions (every 15 min) | — |
 
-**Known issue:** `NEXT_PUBLIC_API_URL` must be set in Vercel env vars → redeploy required for frontend to reach backend.
+All known deployment blockers resolved.
 
 ---
 
@@ -28,8 +28,8 @@
 | `GEMINI_API_KEY` | ✅ | ✅ | ❓ confirm |
 | `POLYGON_API_KEY` | ✅ | ✅ | ❓ confirm |
 | `FINNHUB_API_KEY` | ✅ | ✅ | ❓ confirm |
-| `RESEND_API_KEY` | ❌ empty | ❌ empty | ❌ empty |
-| `CRON_SECRET` | ❌ empty | ❌ empty | ❌ empty |
+| `RESEND_API_KEY` | ✅ | ✅ | ✅ |
+| `CRON_SECRET` | ✅ | ✅ | ✅ |
 | `NEXT_PUBLIC_API_URL` | localhost | — | — |
 | `CLIENT_URL` | localhost | ❓ set to Vercel URL? | — |
 
@@ -53,7 +53,7 @@
 - [x] `GET /api/health`
 - [x] `GET /api/stock/price`, `GET /api/stock/validate`
 - [x] `POST/GET /api/notes` — encrypted notes
-- [x] `GET/POST/PUT/DELETE /api/triggers` — full CRUD + rearm
+- [x] `GET/POST/PUT/DELETE /api/triggers` — full CRUD + rearm; supports `price_level`, `pct_move`, `earnings_warning`
 - [x] `GET/POST/PUT/DELETE /api/trades` — full CRUD + close
 - [x] `GET/POST/PUT/DELETE /api/watchlist`
 - [x] `GET/POST/PUT/DELETE /api/portfolios`
@@ -64,7 +64,7 @@
 - [x] `GET /api/auth/lookup` — username → email lookup
 - [x] `GET /api/user/export` — decrypts all notes/journal, returns full JSON
 - [x] `DELETE /api/user/me` — cascades all tables + Supabase auth.admin.delete_user
-- [x] `GET /api/insights` — aggregations by confidence/exit/horizon + Gemini coaching insights
+- [x] `GET /api/insights` — aggregations by confidence/exit/horizon + Gemini coaching insights + exit behavior + performance trend
 
 ### Chat (AI)
 - [x] Multi-action support (single message → multiple simultaneous actions)
@@ -72,6 +72,7 @@
 - [x] Actions: `add_alert`, `create_portfolio`, `add_to_watchlist`, `log_trade`, `close_trade`, `assign_to_portfolio`, `add_journal_note`, `update_alert`, `delete_alert`
 - [x] Clarifying questions when fields are missing
 - [x] Note/thesis captured alongside alerts
+- [x] Pre-trade checklist modal (thesis match + exit plan) before every `log_trade`
 
 ### Frontend Pages
 - [x] `/login` — username+password, sign up, forgot password
@@ -80,7 +81,7 @@
 - [x] `/watchlist` — **NEW** Watchlist ideas (cards, filter tabs, edit/delete/undo, empty state)
 - [x] `/notebook` — Tabs: active alerts, triggered, trades, portfolios, journal notes (real data)
 - [x] `/news` — Market news (Finnhub, sentiment badges, watchlist-filtered, fully wired)
-- [x] `/stats` — Real trade data + AI coaching insights via `/api/insights`
+- [x] `/stats` — Real trade data + AI coaching insights + exit behavior breakdown + performance trend
 - [x] `/settings` — Username edit, export (downloads JSON), delete account (confirmation modal)
 - [x] `/ticker/[symbol]` — Fully wired
 
@@ -95,19 +96,21 @@
 ### Worker
 - [x] Market hours check
 - [x] Kill switch
-- [x] Trigger detection + price fetch
+- [x] Trigger detection + price fetch; supports `price_level`, `pct_move`, `earnings_warning`
+- [x] Historical trade context in alert emails
 - [x] Gemini insight generation
-- [x] Email via Resend (blocked on `RESEND_API_KEY`)
+- [x] Email via Resend
+- [x] Behavioral alerts in daily briefing (FOMO streak, panic-sold streak)
 - [x] Audit logs
+
+### Observability
+- [x] Sentry error tracking (server + both workers; guarded init, SENTRY_DSN secret)
 
 ---
 
-## Blockers (things stopping MVP from being complete)
+## Blockers
 
-1. **`RESEND_API_KEY`** — email alerts can't fire. Get key from resend.com, add to `server/.env`, Render env vars, and GitHub Actions secrets.
-2. **`CRON_SECRET`** — cron worker auth not secured. Generate any random string, add to same three places.
-3. **DB migrations** — confirm `001_initial_schema.sql` through `004_journal_notes.sql` are applied in Supabase SQL Editor.
-4. **`NEXT_PUBLIC_API_URL`** in Vercel — frontend still hitting localhost in production.
+~~All MVP blockers resolved.~~
 
 ---
 
@@ -115,17 +118,27 @@
 
 ### ✅ Completed this sprint
 - Watchlist page (`/watchlist`) with full CRUD + undo
-- Stats page wired to real data + AI insights (`/api/insights`)
+- Stats page wired to real data + AI insights + exit behavior + performance trend
 - Settings: username edit, export (real JSON download), delete account
-- News page: already fully built, confirmed wired
-- Notebook page: confirmed already using real hooks, no mocks
+- News page: fully built and wired
+- Notebook page: fully wired to real hooks
+- All ops blockers resolved (RESEND_API_KEY, CRON_SECRET, DB migrations, NEXT_PUBLIC_API_URL)
+- Chat: SSE streaming, 7 live data tools, prompt injection protection
+- Daily briefing: endpoint + worker + GitHub Actions workflow
+- Historical trade context in trigger alert emails
+- Expanded trigger types: `price_level`, `pct_move`, `earnings_warning` (DB + API + worker + frontend)
+- Sentry error tracking (server + both workers)
+- Pre-trade checklist modal (thesis match + exit plan)
+- Pattern engine: exit behavior stats + performance trend in `/api/insights` + stats UI
+- Behavioral alerts: FOMO and panic-sold streak detection in daily briefing email
+- Mobile responsive layout: bottom nav, sidebar hidden on mobile, `md:ml-[220px]` main offset, grid fixes on stats + notebook
+- Trigger history: `trigger_logs` table + worker writes on every fire + `GET /api/trigger_logs` + alerts page clock-icon history panel per alert
 
-### Next — complete the email loop (needs your input)
-1. Get `RESEND_API_KEY` from resend.com (free, 3k emails/month)
-2. Set `CRON_SECRET` (any random string)
-3. Add both to `server/.env`, Render env vars, and GitHub Actions secrets
-4. Test: set an alert → wait for cron → email arrives
+### Deferred
+- Claude API upgrade (Gemini → Claude) — on hold, revisit later
 
-### Later — polish
-5. Add historical trade context to alert emails (worker enhancement)
-6. Sentry error tracking
+### Possible next steps
+1. **Onboarding flow** — empty-state guidance for new users (no trades, no watchlist)
+2. **Push / in-app notifications** — browser push or in-app toast when a trigger fires (currently email-only)
+3. **Portfolio analytics** — per-portfolio win rate / return breakdown on the stats page
+4. **Multi-asset support** — crypto or options tickers (currently US equities only via Polygon)

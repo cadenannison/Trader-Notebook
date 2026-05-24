@@ -24,6 +24,11 @@ RESEND_FROM = os.environ.get("RESEND_FROM_EMAIL", "briefing@tradrnotebook.app")
 
 resend.api_key = RESEND_API_KEY
 
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+if SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=0.0, send_default_pii=False)
+
 sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 
@@ -38,6 +43,7 @@ def _build_email(user_email: str, briefing: dict) -> str:
     movers = briefing.get("overnight_movers", [])
     insight = briefing.get("coaching_insight", "")
     tickers = briefing.get("tickers_watched", [])
+    behavioral = briefing.get("behavioral_alerts", [])
 
     near_html = (
         "".join(
@@ -93,6 +99,16 @@ def _build_email(user_email: str, briefing: dict) -> str:
 <ul style="margin:0 0 20px;padding-left:18px;font-size:14px;line-height:1.7">{
         movers_html
     }</ul>
+
+{
+        "".join(
+            f'''<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px 16px;margin-bottom:12px">
+  <p style="font-size:12px;font-weight:700;color:#c2410c;margin:0 0 6px">⚠ BEHAVIORAL ALERT</p>
+  <p style="font-size:14px;line-height:1.6;margin:0;color:#1e293b">{alert}</p>
+</div>'''
+            for alert in behavioral
+        )
+    }
 
 {
         f'''<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;margin-bottom:24px">
@@ -234,20 +250,45 @@ async def _generate_briefing(user_id: str) -> dict:
                     }
                 )
 
+    # Behavioral flags
+    behavioral_alerts: list[str] = []
+    recent_closed = (
+        sb.table("trades")
+        .select("ticker,confidence_tag,exit_reason,return_pct")
+        .eq("user_id", user_id)
+        .eq("status", "closed")
+        .order("closed_at", desc=True)
+        .limit(10)
+        .execute()
+        .data
+        or []
+    )
+    if len(recent_closed) >= 2:
+        fomo_run = sum(
+            1
+            for t in recent_closed[:5]
+            if t.get("confidence_tag") == "fomo"
+        )
+        panic_run = sum(
+            1
+            for t in recent_closed[:5]
+            if t.get("exit_reason") == "panic_sold"
+        )
+        if fomo_run >= 2:
+            behavioral_alerts.append(
+                f"You've entered {fomo_run} of your last 5 trades on FOMO. "
+                "Review whether each setup met your original criteria before entering today."
+            )
+        if panic_run >= 2:
+            behavioral_alerts.append(
+                f"You've panic-sold {panic_run} of your last 5 trades. "
+                "Consider setting hard stops in advance so emotion doesn't drive your exits."
+            )
+
     # Coaching insight
     insight = None
     if GEMINI_API_KEY:
-        recent_trades = (
-            sb.table("trades")
-            .select("ticker,confidence_tag,exit_reason,return_pct")
-            .eq("user_id", user_id)
-            .eq("status", "closed")
-            .order("closed_at", desc=True)
-            .limit(10)
-            .execute()
-            .data
-            or []
-        )
+        recent_trades = recent_closed
         trades_str = (
             "\n".join(
                 f"- {t['ticker']}: {t['confidence_tag']}, {t['exit_reason'] or 'n/a'}, {t['return_pct']:+.1f}%"
@@ -307,6 +348,7 @@ Be specific about a pattern you see. No generic advice."""
         "earnings_today": earnings,
         "overnight_movers": overnight_movers,
         "coaching_insight": insight,
+        "behavioral_alerts": behavioral_alerts,
     }
 
 

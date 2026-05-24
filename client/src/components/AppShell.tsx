@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Redo2, Undo2 } from "lucide-react";
 
 import { Sidebar } from "./Sidebar";
+import { BottomNav } from "./BottomNav";
 import { useUndoStore } from "@/store/undoStore";
 
 function UndoBar() {
@@ -58,7 +59,7 @@ function UndoBar() {
   if (!canUndo && !canRedo) return null;
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex items-center gap-1 bg-slate-900 text-white rounded-full shadow-xl px-3 py-1.5 text-xs font-medium select-none">
+    <div className="fixed bottom-20 right-4 md:bottom-5 md:right-5 z-50 flex items-center gap-1 bg-slate-900 text-white rounded-full shadow-xl px-3 py-1.5 text-xs font-medium select-none">
       <button
         onClick={handleUndo}
         disabled={!canUndo || busy}
@@ -97,7 +98,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Sidebar />
-      <main className="ml-[220px] min-h-screen">{children}</main>
+      <main className="md:ml-[220px] min-h-screen pb-16 md:pb-0">{children}</main>
+      <BottomNav />
       <UndoBar />
     </>
   );

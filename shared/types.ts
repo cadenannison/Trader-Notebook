@@ -12,11 +12,16 @@ export interface UserNote {
   created_at: string;
 }
 
+export type TriggerType = "price_level" | "pct_move" | "earnings_warning";
+
 export interface PriceTrigger {
   id: string;
   ticker: string;
-  target_price: number;
-  condition: "above" | "below";
+  target_price: number | null;
+  condition: "above" | "below" | null;
+  trigger_type: TriggerType;
+  threshold_pct: number | null;
+  reference_price: number | null;
   is_active: boolean;
   auto_disarm: boolean;
   cooldown_hours: number;
@@ -117,6 +122,19 @@ export interface JournalNote {
   tags: string[];
   created_at: string;
   updated_at: string;
+}
+
+// ── Trigger logs ─────────────────────────────────────────────────────────────
+
+export interface TriggerLog {
+  id: string;
+  trigger_id: string;
+  user_id: string;
+  ticker: string;
+  trigger_type: string;
+  price_at_fire: number | null;
+  fired_at: string;
+  summary: string | null;
 }
 
 // ── Alerts ────────────────────────────────────────────────────────────────────

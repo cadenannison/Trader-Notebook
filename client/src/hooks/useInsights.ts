@@ -22,12 +22,34 @@ export interface InsightsSummary {
   worst_trade_ticker: string | null;
 }
 
+export interface ExitBehaviorStat {
+  disciplined_exits: number;
+  override_exits: number;
+  emotional_exits: number;
+  forced_exits: number;
+  disciplined_avg_return: number | null;
+  override_avg_return: number | null;
+  emotional_avg_return: number | null;
+  forced_avg_return: number | null;
+  override_rate: number;
+}
+
+export interface TrendStat {
+  first_half_win_rate: number;
+  recent_half_win_rate: number;
+  first_half_avg_return: number;
+  recent_half_avg_return: number;
+  improving: boolean;
+}
+
 export interface InsightsData {
   summary: InsightsSummary;
   by_confidence_tag: TagStat[];
   by_exit_reason: TagStat[];
   by_time_horizon: TagStat[];
   coaching_insights: string[];
+  exit_behavior: ExitBehaviorStat | null;
+  trend: TrendStat | null;
 }
 
 export function useInsights() {

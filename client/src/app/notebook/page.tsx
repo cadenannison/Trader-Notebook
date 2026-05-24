@@ -603,8 +603,7 @@ function PortfolioDetail({
                       {t.ticker}
                     </span>
                     <span className="text-sm text-slate-700">
-                      {t.condition === "above" ? "↑" : "↓"} $
-                      {t.target_price.toFixed(2)}
+                      {t.trigger_type === "pct_move" ? `±${t.threshold_pct}%` : t.trigger_type === "earnings_warning" ? "Earnings" : `${t.condition === "above" ? "↑" : "↓"} $${(t.target_price ?? 0).toFixed(2)}`}
                     </span>
                     {t.notes && (
                       <span className="text-xs text-slate-400 italic flex-1 truncate">
@@ -1102,7 +1101,7 @@ function WatchCard({ trigger }: { trigger: PriceTrigger }) {
       <p className="text-sm font-semibold text-slate-700">
         {conditionWord}{" "}
         <span className="text-slate-900">
-          ${trigger.target_price.toFixed(2)}
+          {trigger.target_price != null ? `$${trigger.target_price.toFixed(2)}` : trigger.trigger_type === "pct_move" ? `±${trigger.threshold_pct}%` : "Earnings"}
         </span>
       </p>
 
@@ -1375,7 +1374,7 @@ export default function NotebookPage() {
         </div>
 
         {/* Stats row */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {stats.map((s, i) => (
             <StatCard
               key={i}

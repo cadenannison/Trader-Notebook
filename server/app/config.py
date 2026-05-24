@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     newsapi_key: str = ""
     resend_api_key: str = ""
     resend_from_email: str = "alerts@tradrnotebook.app"
+    sentry_dsn: str = ""
 
 
 settings = Settings()

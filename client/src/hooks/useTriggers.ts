@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import api from "@/lib/api";
-import type { PriceTrigger } from "@shared/types";
+import type { PriceTrigger, TriggerType } from "@shared/types";
 
 export function useTriggers(ticker?: string) {
   return useQuery({
@@ -21,8 +21,11 @@ export function useCreateTrigger() {
   return useMutation({
     mutationFn: async (data: {
       ticker: string;
-      target_price: number;
-      condition: "above" | "below";
+      target_price?: number | null;
+      condition?: "above" | "below" | null;
+      trigger_type?: TriggerType;
+      threshold_pct?: number | null;
+      reference_price?: number | null;
       auto_disarm: boolean;
       cooldown_hours: number;
       notes?: string | null;

@@ -42,3 +42,4 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
           MASTER_KEY: ${{ secrets.MASTER_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}

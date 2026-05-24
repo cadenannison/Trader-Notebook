@@ -6,3 +6,4 @@ tenacity==8.3.0
 resend==0.8.0
 cryptography==42.0.8
 ruff==0.4.4
+sentry-sdk>=2.0.0

@@ -21,6 +21,8 @@ export interface ChatAction {
   price?: number;
   note?: string;
   portfolio_name?: string;
+  trigger_type?: string;
+  threshold_pct?: number;
   // show_view
   view?: string;
   // log_idea
@@ -54,6 +56,14 @@ export interface ChatAction {
   old_price?: number;
 }
 
+export interface ToolUsed {
+  name: string;
+  ticker?: string | null;
+  summary: string;
+  loading?: boolean;
+  data?: Record<string, unknown>;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "ai";
@@ -62,14 +72,16 @@ export interface ChatMessage {
   actions?: ChatAction[]; // multi-action array
   actionsCreated?: boolean[]; // per-action success flags
   actionCreated?: boolean; // legacy compat
+  toolsUsed?: ToolUsed[];
+  isStreaming?: boolean;
 }
 
 interface AppState {
   maintenanceMode: boolean;
   setMaintenanceMode: (value: boolean) => void;
 
-  backendWarming: boolean;
-  setBackendWarming: (value: boolean) => void;
+  connectionError: "warming" | "offline" | null;
+  setConnectionError: (value: "warming" | "offline" | null) => void;
 
   chatMessages: ChatMessage[];
   addChatMessage: (msg: ChatMessage) => void;
@@ -83,8 +95,8 @@ export const useAppStore = create<AppState>()(
       maintenanceMode: false,
       setMaintenanceMode: (value) => set({ maintenanceMode: value }),
 
-      backendWarming: false,
-      setBackendWarming: (value) => set({ backendWarming: value }),
+      connectionError: null,
+      setConnectionError: (value) => set({ connectionError: value }),
 
       chatMessages: [],
       addChatMessage: (msg) =>

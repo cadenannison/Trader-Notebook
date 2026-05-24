@@ -40,7 +40,7 @@ export function TriggerCard({ trigger, showTicker = true }: Props) {
           <p className="text-zinc-200 text-sm">
             Alert when price {conditionLabel}{" "}
             <span className="font-semibold text-zinc-100">
-              ${trigger.target_price.toFixed(2)}
+              {trigger.target_price != null ? `$${trigger.target_price.toFixed(2)}` : trigger.trigger_type === "pct_move" ? `±${trigger.threshold_pct}%` : "Earnings"}
             </span>
           </p>
           {!trigger.auto_disarm && (

@@ -31,21 +31,28 @@ MASTER_KEY = os.environ.get("MASTER_KEY", "")
 
 resend.api_key = RESEND_API_KEY
 
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+if SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=0.0, send_default_pii=False)
+
 _INSIGHT_PROMPT = """\
 You are a financial analyst assistant for a personal trading journal.
 
-A price alert has just triggered. Based on the trader's notes and current news,
+An alert has just triggered. Based on the trader's notes, trade history, and current news,
 write a concise 2-3 sentence insight that:
-1. Confirms what happened (which level was hit, direction)
+1. Confirms what happened (which level was hit, or that earnings are approaching)
 2. References the trader's own thesis from their notes
 3. Highlights any relevant news that supports or challenges the thesis
+4. If past trades on this ticker exist, briefly note whether history supports acting (e.g. "Your last 3 NVDA trades averaged +8%")
 
 Be direct. No disclaimers. End with one clear action the trader should consider.
 
 Ticker: {ticker}
-Alert: price {direction} ${trigger_price:.2f} (current: ${price:.2f})
+Alert: {alert_description}
 Trader notes: {notes}
 Recent news: {news}
+Past trades on {ticker}: {trade_history}
 """
 
 # ── Market hours ──────────────────────────────────────────────────────────────
@@ -65,9 +72,53 @@ def is_market_open() -> bool:
 
 def _is_trigger_hit(trigger: dict, price: float) -> bool:
     """Return True if the current price satisfies the trigger condition."""
-    return (trigger["condition"] == "above" and price >= trigger["target_price"]) or (
-        trigger["condition"] == "below" and price <= trigger["target_price"]
-    )
+    t_type = trigger.get("trigger_type") or "price_level"
+
+    if t_type == "price_level":
+        target = trigger.get("target_price")
+        if target is None:
+            return False
+        return (trigger["condition"] == "above" and price >= target) or (
+            trigger["condition"] == "below" and price <= target
+        )
+
+    if t_type == "pct_move":
+        # Reference is the stored baseline; fall back to target_price if not set
+        ref = trigger.get("reference_price") or trigger.get("target_price")
+        threshold = trigger.get("threshold_pct")
+        if not ref or not threshold:
+            return False
+        return abs((price - ref) / ref * 100) >= threshold
+
+    # earnings_warning is time-based, handled separately in main()
+    return False
+
+
+async def _check_earnings_warning(triggers: list[dict]) -> list[dict]:
+    """Return subset of earnings_warning triggers whose ticker reports today or tomorrow."""
+    if not FINNHUB_API_KEY:
+        return []
+    from datetime import timedelta
+
+    today = datetime.now(timezone.utc)
+    tomorrow = today + timedelta(days=1)
+    date_from = today.strftime("%Y-%m-%d")
+    date_to = tomorrow.strftime("%Y-%m-%d")
+
+    tickers_watched = {t["ticker"] for t in triggers}
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            r = await client.get(
+                "https://finnhub.io/api/v1/calendar/earnings",
+                params={"from": date_from, "to": date_to, "token": FINNHUB_API_KEY},
+            )
+        if r.status_code != 200:
+            return []
+        reporting = {e["symbol"] for e in r.json().get("earningsCalendar", []) if e.get("symbol")}
+        return [t for t in triggers if t["ticker"] in reporting & tickers_watched]
+    except Exception as exc:
+        print(f"  [earnings] Finnhub calendar error: {exc}")
+        return []
 
 
 def _in_cooldown(trigger: dict, now: datetime) -> bool:
@@ -135,6 +186,36 @@ def get_user_notes(sb, ticker: str, user_id: str) -> list[str]:
         return []
 
 
+def get_trade_history(sb, ticker: str, user_id: str) -> str:
+    """Return a short human-readable summary of closed trades for this ticker."""
+    try:
+        rows = (
+            sb.table("trades")
+            .select("entry_price,exit_price,return_pct,confidence_tag,exit_reason,closed_at")
+            .eq("user_id", user_id)
+            .eq("ticker", ticker.upper())
+            .eq("status", "closed")
+            .order("closed_at", desc=True)
+            .limit(5)
+            .execute()
+            .data
+        )
+        if not rows:
+            return "No prior closed trades on this ticker."
+        wins = sum(1 for r in rows if (r.get("return_pct") or 0) > 0)
+        avg_return = sum(r.get("return_pct") or 0 for r in rows) / len(rows)
+        lines = [f"{len(rows)} closed trade(s), {wins}/{len(rows)} wins, avg return {avg_return:+.1f}%"]
+        for r in rows:
+            ret = f"{r['return_pct']:+.1f}%" if r.get("return_pct") is not None else "n/a"
+            reason = r.get("exit_reason") or "unknown"
+            date = (r.get("closed_at") or "")[:10]
+            lines.append(f"  • {date} entry ${r['entry_price']} → exit ${r.get('exit_price','?')} ({ret}, {reason})")
+        return "\n".join(lines)
+    except Exception as exc:
+        print(f"  [trades] Error fetching history for {ticker}: {exc}")
+        return "Trade history unavailable."
+
+
 def get_user_email(sb, user_id: str) -> str | None:
     try:
         return sb.auth.admin.get_user_by_id(user_id).user.email
@@ -155,6 +236,22 @@ def write_audit_log(sb, trigger_id: str, action: str, metadata: dict) -> None:
         ).execute()
     except Exception as exc:
         print(f"  [audit] Failed to write log: {exc}")
+
+
+def write_trigger_log(sb, trigger: dict, price: float, summary: str) -> None:
+    try:
+        sb.table("trigger_logs").insert(
+            {
+                "trigger_id": trigger["id"],
+                "user_id": trigger["user_id"],
+                "ticker": trigger["ticker"],
+                "trigger_type": trigger.get("trigger_type") or "price_level",
+                "price_at_fire": round(price, 4) if price else None,
+                "summary": summary[:500] if summary else None,
+            }
+        ).execute()
+    except Exception as exc:
+        print(f"  [trigger_log] Failed to write log: {exc}")
 
 
 def update_trigger_post_fire(sb, trigger: dict, now: datetime) -> None:
@@ -239,26 +336,37 @@ async def get_market_news(ticker: str) -> list[str]:
 
 
 async def run_insight_agent(
-    ticker: str, trigger: dict, price: float, notes: list[str], news: list[str]
+    ticker: str, trigger: dict, price: float, notes: list[str], news: list[str],
+    trade_history: str = "No prior closed trades on this ticker.",
 ) -> str:
-    direction = "risen above" if trigger["condition"] == "above" else "fallen below"
+    t_type = trigger.get("trigger_type") or "price_level"
+
+    if t_type == "pct_move":
+        ref = trigger.get("reference_price") or trigger.get("target_price") or price
+        pct = abs((price - ref) / ref * 100) if ref else 0
+        alert_description = f"moved {pct:.1f}% from reference ${ref:.2f} (now ${price:.2f})"
+    elif t_type == "earnings_warning":
+        alert_description = f"earnings report due today or tomorrow (current price ${price:.2f})"
+    else:
+        direction = "risen above" if trigger["condition"] == "above" else "fallen below"
+        target = trigger.get("target_price") or price
+        alert_description = f"price {direction} ${target:.2f} (current: ${price:.2f})"
 
     if not GEMINI_API_KEY:
         notes_text = notes[0][:120] if notes else "No prior notes recorded."
         news_text = news[0][:120] if news else "No recent news available."
         return (
-            f"{ticker} has {direction} your target of ${trigger['target_price']:.2f} "
-            f"(now ${price:.2f}). Your thesis: {notes_text}. Latest: {news_text}. "
+            f"{ticker} alert: {alert_description}. "
+            f"Your thesis: {notes_text}. Latest: {news_text}. "
             f"Review the position and decide whether to act or hold."
         )
 
     prompt = _INSIGHT_PROMPT.format(
         ticker=ticker,
-        direction=direction,
-        trigger_price=trigger["target_price"],
-        price=price,
+        alert_description=alert_description,
         notes=" | ".join(notes[:3]) or "No notes recorded.",
         news=" | ".join(news[:3]) or "No recent news.",
+        trade_history=trade_history,
     )
     body = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -329,6 +437,10 @@ async def main() -> None:
         print("No active triggers.")
         return
 
+    # Split by trigger type
+    price_triggers = [t for t in triggers if (t.get("trigger_type") or "price_level") in ("price_level", "pct_move")]
+    earnings_triggers = [t for t in triggers if (t.get("trigger_type") or "price_level") == "earnings_warning"]
+
     tickers = list({t["ticker"] for t in triggers})
     print(
         f"Checking {len(triggers)} trigger(s) across {len(tickers)} ticker(s): {', '.join(tickers)}"
@@ -337,7 +449,8 @@ async def main() -> None:
     prices = await batch_fetch_prices(tickers)
     now = datetime.now(timezone.utc)
 
-    for trigger in triggers:
+    # ── Price-level and pct_move triggers ─────────────────────────────────────
+    for trigger in price_triggers:
         ticker = trigger["ticker"]
         price = prices.get(ticker)
 
@@ -346,22 +459,31 @@ async def main() -> None:
             continue
 
         if not _is_trigger_hit(trigger, price):
-            print(
-                f"  [{ticker}] ${price:.2f} vs ${trigger['target_price']} {trigger['condition']} — no hit."
-            )
+            t_type = trigger.get("trigger_type") or "price_level"
+            if t_type == "pct_move":
+                ref = trigger.get("reference_price") or trigger.get("target_price")
+                pct = abs((price - ref) / ref * 100) if ref else 0
+                print(f"  [{ticker}] ${price:.2f} — {pct:.1f}% move vs {trigger.get('threshold_pct')}% threshold — no hit.")
+            else:
+                print(f"  [{ticker}] ${price:.2f} vs ${trigger['target_price']} {trigger['condition']} — no hit.")
             continue
 
         if _in_cooldown(trigger, now):
             print(f"  [{ticker}] Trigger {trigger['id']} in cooldown — skipping.")
             continue
 
-        print(
-            f"  [{ticker}] TRIGGER HIT: ${price:.2f} {trigger['condition']} ${trigger['target_price']:.2f}"
-        )
+        t_type = trigger.get("trigger_type") or "price_level"
+        if t_type == "pct_move":
+            ref = trigger.get("reference_price") or trigger.get("target_price")
+            pct = abs((price - ref) / ref * 100) if ref else 0
+            print(f"  [{ticker}] TRIGGER HIT: ${price:.2f} moved {pct:.1f}% from ${ref} (threshold {trigger.get('threshold_pct')}%)")
+        else:
+            print(f"  [{ticker}] TRIGGER HIT: ${price:.2f} {trigger['condition']} ${trigger['target_price']:.2f}")
 
         notes = get_user_notes(sb, ticker, trigger["user_id"])
         news = await get_market_news(ticker)
-        summary = await run_insight_agent(ticker, trigger, price, notes, news)
+        trade_history = get_trade_history(sb, ticker, trigger["user_id"])
+        summary = await run_insight_agent(ticker, trigger, price, notes, news, trade_history)
 
         write_audit_log(
             sb,
@@ -372,18 +494,54 @@ async def main() -> None:
                 "price": price,
                 "trigger_id": trigger["id"],
                 "user_id": trigger["user_id"],
+                "trigger_type": t_type,
             },
         )
 
         user_email = get_user_email(sb, trigger["user_id"])
         send_email(user_email, ticker, summary)
+        write_trigger_log(sb, trigger, price, summary)
         print(f"  [{ticker}] Email sent to {user_email}")
 
         update_trigger_post_fire(sb, trigger, now)
-        status = (
-            "deactivated" if trigger["auto_disarm"] else "re-armed (cooldown reset)"
-        )
+        status = "deactivated" if trigger["auto_disarm"] else "re-armed (cooldown reset)"
         print(f"  [{ticker}] Trigger {trigger['id']} {status}.")
+
+    # ── Earnings-warning triggers ──────────────────────────────────────────────
+    if earnings_triggers:
+        firing_earnings = await _check_earnings_warning(earnings_triggers)
+        for trigger in firing_earnings:
+            ticker = trigger["ticker"]
+
+            if _in_cooldown(trigger, now):
+                print(f"  [{ticker}] Earnings trigger {trigger['id']} in cooldown — skipping.")
+                continue
+
+            print(f"  [{ticker}] EARNINGS WARNING: reports today or tomorrow")
+            price = prices.get(ticker, 0.0)
+            notes = get_user_notes(sb, ticker, trigger["user_id"])
+            news = await get_market_news(ticker)
+            trade_history = get_trade_history(sb, ticker, trigger["user_id"])
+
+            # Earnings-specific insight prompt variant
+            earnings_trigger = {**trigger, "condition": "earnings", "target_price": price}
+            summary = await run_insight_agent(ticker, earnings_trigger, price, notes, news, trade_history)
+
+            write_audit_log(
+                sb,
+                trigger["id"],
+                "earnings_warning_fired",
+                {"ticker": ticker, "price": price, "trigger_id": trigger["id"], "user_id": trigger["user_id"]},
+            )
+
+            user_email = get_user_email(sb, trigger["user_id"])
+            send_email(user_email, ticker, summary)
+            write_trigger_log(sb, trigger, price, summary)
+            print(f"  [{ticker}] Earnings warning email sent to {user_email}")
+
+            update_trigger_post_fire(sb, trigger, now)
+            status = "deactivated" if trigger["auto_disarm"] else "re-armed"
+            print(f"  [{ticker}] Trigger {trigger['id']} {status}.")
 
     record_last_run(sb, now)
     print("Trigger check complete.")

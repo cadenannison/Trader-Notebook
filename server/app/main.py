@@ -21,6 +21,18 @@ from app.api import (
 )
 from app.config import settings
 
+# Sentry — init before any request handling
+if settings.sentry_dsn:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        integrations=[StarletteIntegration(), FastApiIntegration()],
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+    )
+
 limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(title="tradrNotebook API", version="0.1.0")

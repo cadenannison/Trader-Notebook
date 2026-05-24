@@ -13,6 +13,7 @@ import {
   MessageSquare,
   Newspaper,
   Settings,
+  WifiOff,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAppStore } from "@/store/appStore";
@@ -69,7 +70,7 @@ function NavItem({
 export function Sidebar() {
   const pathname = usePathname();
   const [displayName, setDisplayName] = useState<string>("");
-  const backendWarming = useAppStore((s) => s.backendWarming);
+  const connectionError = useAppStore((s) => s.connectionError);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -83,7 +84,7 @@ export function Sidebar() {
   }, []);
 
   return (
-    <aside className="fixed top-0 left-0 h-screen w-[220px] bg-white border-r border-brand-subtle flex flex-col z-20">
+    <aside className="fixed top-0 left-0 h-screen w-[220px] bg-white border-r border-brand-subtle hidden md:flex flex-col z-20">
       {/* Brand */}
       <div className="px-4 py-5 border-b border-brand-subtle">
         <Link href="/" className="flex items-center gap-2.5">
@@ -94,13 +95,23 @@ export function Sidebar() {
         </Link>
       </div>
 
-      {/* Warming banner */}
-      {backendWarming && (
+      {/* Connection banner */}
+      {connectionError === "offline" && (
+        <div className="mx-3 mt-3 px-3 py-2 rounded-lg bg-slate-100 border border-slate-300">
+          <div className="flex items-center gap-2">
+            <WifiOff size={13} className="text-slate-500 shrink-0" />
+            <p className="text-xs text-slate-600 font-medium leading-snug">
+              No internet connection
+            </p>
+          </div>
+        </div>
+      )}
+      {connectionError === "warming" && (
         <div className="mx-3 mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
             <p className="text-xs text-amber-700 font-medium leading-snug">
-              Warming up. Please wait…
+              Backend warming up. Please wait…
             </p>
           </div>
         </div>
