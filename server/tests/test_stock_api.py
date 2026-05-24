@@ -67,6 +67,46 @@ def test_price_ticker_is_uppercased(client):
     assert resp.json()["ticker"] == "NVDA"
 
 
+# ── Batch prices ─────────────────────────────────────────────────────────────
+
+
+def test_batch_prices_returns_200(client):
+    resp = client.get("/api/stock/prices?tickers=NVDA,AAPL")
+    assert resp.status_code == 200
+
+
+def test_batch_prices_response_is_dict(client):
+    resp = client.get("/api/stock/prices?tickers=NVDA,AAPL")
+    data = resp.json()
+    assert isinstance(data, dict)
+
+
+def test_batch_prices_known_tickers_present(client):
+    resp = client.get("/api/stock/prices?tickers=NVDA,AAPL")
+    data = resp.json()
+    assert "NVDA" in data
+    assert "AAPL" in data
+
+
+def test_batch_prices_entry_shape(client):
+    resp = client.get("/api/stock/prices?tickers=NVDA")
+    entry = resp.json()["NVDA"]
+    assert "price" in entry
+    assert "change_pct" in entry
+
+
+def test_batch_prices_unknown_ticker_omitted(client):
+    resp = client.get("/api/stock/prices?tickers=ZZZUNKNOWN999")
+    data = resp.json()
+    assert "ZZZUNKNOWN999" not in data
+
+
+def test_batch_prices_case_insensitive(client):
+    resp = client.get("/api/stock/prices?tickers=nvda")
+    assert resp.status_code == 200
+    assert "NVDA" in resp.json()
+
+
 # ── Health ────────────────────────────────────────────────────────────────────
 
 

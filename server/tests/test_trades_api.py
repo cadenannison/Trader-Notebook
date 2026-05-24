@@ -151,6 +151,44 @@ def test_delete_nonexistent_trade_returns_404(client):
     assert resp.status_code == 404
 
 
+def test_close_trade_with_post_trade_notes(client):
+    create = client.post("/api/trades", json={"ticker": "META", "entry_price": 500.0})
+    trade_id = create.json()["id"]
+    close = client.put(
+        f"/api/trades/{trade_id}/close",
+        json={"exit_price": 520.0, "exit_reason": "hit_target", "post_trade_notes": "clean exit"},
+    )
+    assert close.status_code == 200
+    assert close.json()["post_trade_notes"] == "clean exit"
+
+
+def test_update_trade_entry_price(client):
+    create = client.post("/api/trades", json={"ticker": "AMZN", "entry_price": 180.0})
+    trade_id = create.json()["id"]
+    resp = client.put(f"/api/trades/{trade_id}", json={"entry_price": 185.0})
+    assert resp.status_code == 200
+    assert resp.json()["entry_price"] == 185.0
+
+
+def test_update_nonexistent_trade_returns_404(client):
+    resp = client.put("/api/trades/does-not-exist", json={"entry_price": 100.0})
+    assert resp.status_code == 404
+
+
+def test_update_trade_no_fields_returns_400(client):
+    create = client.post("/api/trades", json={"ticker": "SPY", "entry_price": 500.0})
+    trade_id = create.json()["id"]
+    resp = client.put(f"/api/trades/{trade_id}", json={})
+    assert resp.status_code == 400
+
+
+def test_filter_by_ticker(client):
+    client.post("/api/trades", json={"ticker": "UNIQUE123", "entry_price": 10.0})
+    resp = client.get("/api/trades?ticker=UNIQUE123")
+    assert resp.status_code == 200
+    assert all(t["ticker"] == "UNIQUE123" for t in resp.json())
+
+
 def test_filter_by_status(client):
     client.post("/api/trades", json={"ticker": "VGT", "entry_price": 420.0})
     resp = client.get("/api/trades?status=open")

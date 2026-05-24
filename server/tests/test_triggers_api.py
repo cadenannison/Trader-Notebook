@@ -95,9 +95,11 @@ def test_create_trigger_missing_ticker_returns_422(client):
     assert resp.status_code == 422
 
 
-def test_create_trigger_missing_price_returns_422(client):
+def test_create_trigger_missing_price_returns_400(client):
+    # target_price is optional at the Pydantic level (supports pct_move/earnings_warning),
+    # so missing price on a price_level trigger returns 400 from business-logic validation
     resp = client.post("/api/triggers", json={"ticker": "NVDA", "condition": "above"})
-    assert resp.status_code == 422
+    assert resp.status_code == 400
 
 
 def test_create_trigger_advanced_settings(client):
@@ -131,6 +133,56 @@ def test_rearm_nonexistent_trigger_returns_404(client):
 def test_delete_nonexistent_trigger_returns_404(client):
     resp = client.delete("/api/triggers/does-not-exist")
     assert resp.status_code == 404
+
+
+def test_create_pct_move_trigger(client):
+    resp = client.post(
+        "/api/triggers",
+        json={"ticker": "NVDA", "trigger_type": "pct_move", "threshold_pct": 5.0},
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["trigger_type"] == "pct_move"
+    assert data["threshold_pct"] == 5.0
+
+
+def test_create_pct_move_missing_threshold_returns_400(client):
+    resp = client.post(
+        "/api/triggers",
+        json={"ticker": "NVDA", "trigger_type": "pct_move"},
+    )
+    assert resp.status_code == 400
+
+
+def test_create_earnings_warning_trigger(client):
+    resp = client.post(
+        "/api/triggers",
+        json={"ticker": "TSLA", "trigger_type": "earnings_warning"},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["trigger_type"] == "earnings_warning"
+
+
+def test_update_trigger_notes(client):
+    create = client.post(
+        "/api/triggers",
+        json={"ticker": "AAPL", "target_price": 200.0, "condition": "above"},
+    )
+    trigger_id = create.json()["id"]
+    resp = client.put(f"/api/triggers/{trigger_id}", json={"notes": "updated note"})
+    assert resp.status_code == 200
+    assert resp.json()["notes"] == "updated note"
+
+
+def test_update_nonexistent_trigger_returns_404(client):
+    resp = client.put("/api/triggers/does-not-exist", json={"notes": "hi"})
+    assert resp.status_code == 404
+
+
+def test_get_trigger_logs_returns_list(client):
+    resp = client.get("/api/trigger_logs")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
 
 
 def test_create_then_delete(client):
