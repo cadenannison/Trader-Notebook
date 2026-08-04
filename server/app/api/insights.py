@@ -184,7 +184,7 @@ async def _gemini_insights(
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={settings.gemini_api_key}",
+                f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model_lite}:generateContent?key={settings.gemini_api_key}",
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {"responseMimeType": "application/json"},

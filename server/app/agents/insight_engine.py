@@ -26,7 +26,7 @@ Recent news: {news}
 async def _call_gemini(prompt: str) -> str:
     if not settings.gemini_api_key:
         return ""
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent"
     body = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.5, "maxOutputTokens": 512},

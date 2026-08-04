@@ -1,5 +1,5 @@
 # Trader Notebook — Status
-> Last updated: 2026-05-23
+> Last updated: 2026-08-03
 
 ---
 
@@ -112,6 +112,14 @@ All known deployment blockers resolved.
 
 ~~All MVP blockers resolved.~~
 
+### Fixed 2026-08-04
+- ~~Gemini calls returning `429 RESOURCE_EXHAUSTED` / `limit: 0`~~ — not a dead key or a billing problem. Google has zeroed out free-tier quota for the pinned model IDs (`gemini-2.0-flash`, `gemini-2.0-flash-lite`, `gemini-2.5-flash`) on new accounts/projects; the rolling aliases (`gemini-flash-latest`, `gemini-flash-lite-latest`) work fine on the same key. Repointed every hardcoded model reference: `server/app/agents/insight_engine.py`, `server/app/api/chat.py` (`_MODELS`), `server/app/api/briefing.py`, `server/app/api/insights.py`, `worker/trigger_worker.py`, `worker/daily_briefing.py`, `worker/weekly_digest.py`. Verified against the live API with the real code path (`insight_engine._call_gemini`), not just a curl probe.
+
+### Fixed 2026-08-03
+- ~~`worker/tests/` not run by CI~~ — added a `worker` job to `.github/workflows/ci.yml` (mirrors the `server` job: installs `worker/requirements.txt` + `pytest`, runs `pytest worker/tests/`). Verified against a clean venv, not just the local dev one.
+- ~~`worker/requirements.txt` pinned `pydantic==2.7.1`, incompatible with Python 3.13~~ — relaxed all exact pins in `worker/requirements.txt` to `>=` floors matching `server/requirements.txt`'s style (`supabase>=2.10.0`, `pydantic>=2.10.0`, etc.). All 24 worker tests now collect and pass, locally and in a from-scratch venv.
+- Added the worker suite to `make test` so `worker/`, `server/`, and `client/` all run in one command.
+
 ---
 
 ## Next Up (priority order)
@@ -142,3 +150,12 @@ All known deployment blockers resolved.
 2. **Push / in-app notifications** — browser push or in-app toast when a trigger fires (currently email-only)
 3. **Portfolio analytics** — per-portfolio win rate / return breakdown on the stats page
 4. **Multi-asset support** — crypto or options tickers (currently US equities only via Polygon)
+5. **Full pattern engine** — `/api/insights` currently covers exit behavior + performance trend; spec calls for 6 dimensions total (setup type, idea source, time horizon, confidence at entry, stop-loss override behavior, exit-vs-target pattern)
+6. **Mobile app** — React Native + Expo, sharing `shared/types.ts` and the existing FastAPI backend (no new API work needed); scope: chat, alerts, watchlist views, native push notifications
+
+---
+
+## Guardrails (carried over from the old implementation plan)
+- `server/app/crypto/keys.py` — do not change key derivation
+- `MASTER_KEY` — never regenerate once any notes exist in production (see key rotation procedure in `GAMEPLAN.md` §14.F)
+- `infra/migrations/001_initial_schema.sql` — do not modify; only add new migration files

@@ -124,7 +124,7 @@ Focus on a behavioral pattern you notice, not generic advice. Be direct and spec
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
             r = await client.post(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent",
+                f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model_lite}:generateContent",
                 json={
                     "contents": [{"role": "user", "parts": [{"text": prompt}]}],
                     "generationConfig": {"temperature": 0.7, "maxOutputTokens": 150},

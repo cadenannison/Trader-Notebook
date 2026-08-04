@@ -1,6 +1,8 @@
 # Trader Notebook — Engineering Gameplan
 
 > **Philosophy:** "Shift-Left" security — build it in from day one, not bolt it on later. Every layer operates on least-privilege access, and every AI action is auditable before the user sees it.
+>
+> This is the original architecture/design blueprint — decisions, patterns, and rationale. It is not a progress tracker and parts of it (MVP boundary, Phase 2 wishlist) are now historical since much has already shipped. For current build state, see `STATUS.md`.
 
 ---
 

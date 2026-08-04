@@ -19,6 +19,9 @@ SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY", "")
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+# Rolling alias, not a dated snapshot — Google deprecates dated model IDs
+# (gemini-2.0-flash-lite, etc.) without warning; override via env if this ever moves.
+GEMINI_MODEL_LITE = os.environ.get("GEMINI_MODEL_LITE", "gemini-flash-lite-latest")
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 RESEND_FROM = os.environ.get("RESEND_FROM_EMAIL", "briefing@tradrnotebook.app")
 
@@ -325,7 +328,7 @@ Be specific about a pattern you see. No generic advice."""
         try:
             async with httpx.AsyncClient(timeout=20.0) as client:
                 r = await client.post(
-                    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent",
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL_LITE}:generateContent",
                     json={
                         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
                         "generationConfig": {

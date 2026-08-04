@@ -21,6 +21,10 @@ class Settings(BaseSettings):
 
     # AI
     gemini_api_key: str = ""
+    # Rolling aliases, not dated snapshots — Google deprecates dated model IDs
+    # (gemini-2.0-flash, etc.) without warning; override via env if these ever move.
+    gemini_model: str = "gemini-flash-latest"
+    gemini_model_lite: str = "gemini-flash-lite-latest"
 
     # News & comms
     newsapi_key: str = ""

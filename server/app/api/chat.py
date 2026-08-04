@@ -431,7 +431,7 @@ class ChatResponse(BaseModel):
     tools_used: list[ToolUsed] = []
 
 
-_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"]
+_MODELS = [settings.gemini_model, settings.gemini_model_lite]
 
 
 async def _fetch_prices_for_message(message: str) -> str:

@@ -54,13 +54,3 @@ make test      # Run server (pytest) and client (vitest) test suites
 make lint      # Ruff lint check across server/ and worker/
 make worker    # Run the trigger worker locally
 ```
-
----
-
-## Deployment
-
-| Service | What it runs |
-|---|---|
-| [Vercel](https://vercel.com) | Next.js frontend (auto-deploys from `main`) |
-| [Render](https://render.com) | FastAPI backend (auto-deploys via `render.yaml`) |
-| GitHub Actions | CI on every push · scheduled price alert worker |

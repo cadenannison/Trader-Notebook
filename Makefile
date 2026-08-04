@@ -20,6 +20,7 @@ dev:
 
 test:
 	cd server && PYTHONPATH=. $(abspath $(PYTEST)) tests/ -v
+	PYTHONPATH=. $(PYTEST) worker/tests/ -v
 	cd client && npm run test -- --run
 
 format:

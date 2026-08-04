@@ -18,6 +18,9 @@ from supabase import create_client
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+# Rolling alias, not a dated snapshot — Google deprecates dated model IDs
+# (gemini-2.0-flash-lite, etc.) without warning; override via env if this ever moves.
+GEMINI_MODEL_LITE = os.environ.get("GEMINI_MODEL_LITE", "gemini-flash-lite-latest")
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 RESEND_FROM = os.environ.get("RESEND_FROM_EMAIL", "briefing@tradrnotebook.app")
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
@@ -200,7 +203,7 @@ Identify a specific pattern or behavioral tendency. Be direct and actionable."""
         try:
             async with httpx.AsyncClient(timeout=20.0) as client:
                 r = await client.post(
-                    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent",
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL_LITE}:generateContent",
                     json={
                         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
                         "generationConfig": {

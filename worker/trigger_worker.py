@@ -25,6 +25,10 @@ SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY", "")
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+# Rolling aliases, not dated snapshots — Google deprecates dated model IDs
+# (gemini-2.0-flash, etc.) without warning; override via env if these ever move.
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
+GEMINI_MODEL_LITE = os.environ.get("GEMINI_MODEL_LITE", "gemini-flash-lite-latest")
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 RESEND_FROM = os.environ.get("RESEND_FROM_EMAIL", "alerts@tradrnotebook.app")
 MASTER_KEY = os.environ.get("MASTER_KEY", "")
@@ -372,7 +376,7 @@ async def run_insight_agent(
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.5, "maxOutputTokens": 512},
     }
-    for model in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"]:
+    for model in [GEMINI_MODEL, GEMINI_MODEL_LITE]:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
         try:
             async with httpx.AsyncClient(timeout=20.0) as client:
