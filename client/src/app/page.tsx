@@ -10,11 +10,15 @@ import {
   Calculator,
   Eye,
   FileText,
+  History,
+  Lightbulb,
   Mic,
   MicOff,
   Newspaper,
   Send,
+  Sunrise,
   TrendingUp,
+  Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -24,12 +28,14 @@ import { useAppStore as useAppStoreRaw } from "@/store/appStore";
 import {
   useCreateTrigger,
   useDeleteTrigger,
+  useRearmTrigger,
   useTriggers,
   useUpdateTrigger,
 } from "@/hooks/useTriggers";
 import {
   useCreateWatchlistEntry,
   useDeleteWatchlistEntry,
+  useUpdateWatchlistEntry,
   useWatchlist,
 } from "@/hooks/useWatchlist";
 import { PreTradeChecklist } from "@/components/PreTradeChecklist";
@@ -38,15 +44,20 @@ import {
   useCreateTrade,
   useDeleteTrade,
   useCloseTrade,
+  useTrades,
+  useUpdateTrade,
 } from "@/hooks/useTrades";
 import {
   useCreatePortfolio,
   useDeletePortfolio,
+  useUpdatePortfolio,
   usePortfolios,
 } from "@/hooks/usePortfolios";
 import {
   useCreateJournalNote,
   useDeleteJournalNote,
+  useJournalNotes,
+  useUpdateJournalNote,
 } from "@/hooks/useJournalNotes";
 import {
   useAppStore,
@@ -72,7 +83,11 @@ const TOOL_META: Record<
   get_alerts: { label: "Alerts", Icon: Bell },
   get_positions: { label: "Positions", Icon: BarChart2 },
   get_watchlist: { label: "Watchlist", Icon: Eye },
+  get_trade_history: { label: "Trade history", Icon: History },
   calculate_position_size: { label: "Position size", Icon: Calculator },
+  get_insights: { label: "Insights", Icon: Lightbulb },
+  get_briefing: { label: "Briefing", Icon: Sunrise },
+  get_analyst_ratings: { label: "Analyst ratings", Icon: Users },
 };
 
 function PriceCard({
@@ -153,12 +168,19 @@ export default function ChatPage() {
   const { data: triggers = [] } = useTriggers();
   const { data: portfolios = [] } = usePortfolios();
   const { mutateAsync: deletePortfolio } = useDeletePortfolio();
+  const { mutate: updatePortfolio } = useUpdatePortfolio();
   const { mutateAsync: createJournalNote } = useCreateJournalNote();
   const { mutateAsync: deleteJournalNote } = useDeleteJournalNote();
+  const { mutate: updateJournalNote } = useUpdateJournalNote();
   const { mutateAsync: deleteWatchlistEntry } = useDeleteWatchlistEntry();
+  const { mutate: updateWatchlistEntry } = useUpdateWatchlistEntry();
   const { mutateAsync: deleteTrade } = useDeleteTrade();
+  const { mutate: updateTrade } = useUpdateTrade();
+  const { mutate: rearmTrigger } = useRearmTrigger();
   const { push: pushUndo } = useUndoStore();
   const { data: watchlistEntries = [] } = useWatchlist();
+  const { data: openTrades = [] } = useTrades({ status: "open" });
+  const { data: journalNotes = [] } = useJournalNotes();
 
   const {
     chatMessages: messages,
@@ -220,6 +242,40 @@ export default function ChatPage() {
         portfolios.find((p) => p.name.toLowerCase() === lower)?.id ??
         null
       );
+    };
+
+    // Resolves an open position by ticker, optionally disambiguated by entry_price.
+    // Chat-driven trade mutation is restricted to open positions — closed trades
+    // carry exit/P&L data that undo/redo can't reconstruct, so history stays UI-only.
+    const resolveOpenTrade = (ticker: string, entryPrice?: number | null) => {
+      const upper = ticker.toUpperCase();
+      const candidates = openTrades.filter((t) => t.ticker === upper);
+      if (entryPrice != null) {
+        return candidates.find((t) => t.entry_price === entryPrice) ?? candidates[0] ?? null;
+      }
+      return candidates[0] ?? null;
+    };
+
+    // Resolves a journal note by ticker tag first, then title substring match.
+    // Only returns a match when exactly one note qualifies — ambiguity is left
+    // to the system prompt's clarifying-question rule rather than guessed here.
+    const resolveJournalNote = (tags?: string[] | null, title?: string | null) => {
+      let candidates = journalNotes;
+      if (tags?.length) {
+        const upperTags = tags.map((t) => t.toUpperCase());
+        const byTag = candidates.filter((n) =>
+          (n.tags ?? []).some((t) => upperTags.includes(t.toUpperCase()))
+        );
+        if (byTag.length) candidates = byTag;
+      }
+      if (title) {
+        const lowerTitle = title.toLowerCase();
+        const byTitle = candidates.filter((n) =>
+          (n.title ?? "").toLowerCase().includes(lowerTitle)
+        );
+        if (byTitle.length) candidates = byTitle;
+      }
+      return candidates.length === 1 ? candidates[0] : null;
     };
 
     const ensureMsg = () => {
@@ -409,6 +465,7 @@ export default function ChatPage() {
                 confidence_tag: (snapAct.confidence_tag as ConfidenceTag) ?? "neutral",
                 cost_basis: snapAct.cost_basis ?? null,
                 shares: snapAct.shares ?? null,
+                watchlist_entry_id: snapAct.watchlist_entry_id ?? null,
                 pre_trade_notes: snapNotes,
               });
               tradeIds.current = tr.id;
@@ -417,20 +474,162 @@ export default function ChatPage() {
           markCreated();
         } else if (
           act.type === "close_trade" &&
+          act.ticker &&
           act.exit_price &&
-          act.exit_reason &&
-          act.trade_id
+          act.exit_reason
         ) {
-          const debriefNotes = await new Promise<string | null>((resolve) => {
-            setPendingDebrief({ act, resolve });
-          });
-          await closeTrade({
-            id: act.trade_id,
-            exit_price: act.exit_price,
-            exit_reason: act.exit_reason as ExitReason,
-            post_trade_notes: debriefNotes ?? undefined,
-          });
-          markCreated();
+          const target = resolveOpenTrade(act.ticker, act.entry_price);
+          if (target) {
+            const debriefNotes = await new Promise<string | null>((resolve) => {
+              setPendingDebrief({ act, resolve });
+            });
+            await closeTrade({
+              id: target.id,
+              exit_price: act.exit_price,
+              exit_reason: act.exit_reason as ExitReason,
+              post_trade_notes: debriefNotes ?? undefined,
+            });
+            markCreated();
+          }
+        } else if (act.type === "update_trade" && act.ticker) {
+          const target = resolveOpenTrade(act.ticker, act.entry_price);
+          if (target) {
+            const updates: Record<string, unknown> = {};
+            if (act.new_entry_price != null) updates.entry_price = act.new_entry_price;
+            if (act.new_shares != null) updates.shares = act.new_shares;
+            if (act.new_confidence_tag) updates.confidence_tag = act.new_confidence_tag;
+            if (act.new_time_horizon) updates.time_horizon = act.new_time_horizon;
+            if (act.new_cost_basis != null) updates.cost_basis = act.new_cost_basis;
+            if (Object.keys(updates).length) {
+              updateTrade({ id: target.id, ...updates });
+              markCreated();
+            }
+          }
+        } else if (act.type === "delete_trade" && act.ticker) {
+          const target = resolveOpenTrade(act.ticker, act.entry_price);
+          if (target) {
+            const snapTrade = { ...target };
+            await deleteTrade(target.id);
+            const tradeIds = { current: target.id };
+            pushUndo({
+              label: `Trade deleted: ${act.ticker}`,
+              undo: async () => {
+                const tr = await createTrade({
+                  ticker: snapTrade.ticker,
+                  entry_price: snapTrade.entry_price,
+                  time_horizon: snapTrade.time_horizon,
+                  confidence_tag: snapTrade.confidence_tag,
+                  cost_basis: snapTrade.cost_basis,
+                  shares: snapTrade.shares,
+                  watchlist_entry_id: snapTrade.watchlist_entry_id,
+                  pre_trade_notes: snapTrade.pre_trade_notes,
+                });
+                tradeIds.current = tr.id;
+              },
+              redo: async () => { await deleteTrade(tradeIds.current); },
+            });
+            markCreated();
+          }
+        } else if (act.type === "update_watchlist_entry" && act.ticker) {
+          const target = watchlistEntries.find(
+            (e) => e.ticker === act.ticker!.toUpperCase()
+          );
+          if (target) {
+            const updates: Record<string, unknown> = {};
+            if (act.reasoning != null) updates.reasoning = act.reasoning;
+            if (act.target_price != null) updates.target_price = act.target_price;
+            if (act.stop_price != null) updates.stop_price = act.stop_price;
+            if (act.entry_price != null) updates.entry_price = act.entry_price;
+            if (act.time_horizon) updates.time_horizon = act.time_horizon;
+            if (Object.keys(updates).length) {
+              updateWatchlistEntry({ id: target.id, ...updates });
+              markCreated();
+            }
+          }
+        } else if (act.type === "delete_watchlist_entry" && act.ticker) {
+          const target = watchlistEntries.find(
+            (e) => e.ticker === act.ticker!.toUpperCase()
+          );
+          if (target) {
+            const snapEntry = { ...target };
+            await deleteWatchlistEntry(target.id);
+            const entryIds = { current: target.id };
+            pushUndo({
+              label: `Watchlist entry deleted: ${act.ticker}`,
+              undo: async () => {
+                const e = await createWatchlistEntry({
+                  ticker: snapEntry.ticker,
+                  reasoning: snapEntry.reasoning,
+                  idea_source: snapEntry.idea_source,
+                  time_horizon: snapEntry.time_horizon,
+                  entry_price: snapEntry.entry_price,
+                  target_price: snapEntry.target_price,
+                  stop_price: snapEntry.stop_price,
+                });
+                entryIds.current = e.id;
+              },
+              redo: async () => { await deleteWatchlistEntry(entryIds.current); },
+            });
+            markCreated();
+          }
+        } else if (act.type === "update_journal_note") {
+          const target = resolveJournalNote(act.tags, act.title);
+          if (target) {
+            const updates: Record<string, unknown> = {};
+            if (act.content != null) updates.content = act.content;
+            if (act.tags != null) updates.tags = act.tags;
+            if (Object.keys(updates).length) {
+              updateJournalNote({ id: target.id, ...updates });
+              markCreated();
+            }
+          }
+        } else if (act.type === "delete_journal_note") {
+          const target = resolveJournalNote(act.tags, act.title);
+          if (target) {
+            const snapNote = { ...target };
+            await deleteJournalNote(target.id);
+            const noteIds = { current: target.id };
+            pushUndo({
+              label: `Note deleted${snapNote.title ? `: ${snapNote.title}` : ""}`,
+              undo: async () => {
+                const n = await createJournalNote({
+                  content: snapNote.content,
+                  title: snapNote.title ?? undefined,
+                  tags: snapNote.tags ?? [],
+                });
+                noteIds.current = n.id;
+              },
+              redo: async () => { await deleteJournalNote(noteIds.current); },
+            });
+            markCreated();
+          }
+        } else if (act.type === "update_portfolio" && act.portfolio_name) {
+          const portfolioId = resolvePortfolioId(act.portfolio_name);
+          if (portfolioId) {
+            const updates: Record<string, unknown> = {};
+            if (act.new_name) updates.name = act.new_name;
+            if (act.thesis != null) updates.thesis = act.thesis;
+            if (Object.keys(updates).length) {
+              updatePortfolio({ id: portfolioId, ...updates });
+              markCreated();
+            }
+          }
+        } else if (act.type === "delete_portfolio" && act.portfolio_name) {
+          const portfolioId = resolvePortfolioId(act.portfolio_name);
+          if (portfolioId) {
+            await deletePortfolio(portfolioId);
+            markCreated();
+          }
+        } else if (act.type === "rearm_alert" && act.ticker) {
+          const upperTicker = act.ticker.toUpperCase();
+          const candidates = triggers.filter((t) => t.ticker === upperTicker);
+          const target = act.price != null
+            ? (candidates.find((t) => t.target_price === act.price) ?? candidates[0])
+            : candidates[0];
+          if (target) {
+            rearmTrigger(target.id);
+            markCreated();
+          }
         } else if (act.type === "create_portfolio" && act.name) {
           const portfolio = await createPortfolio({ name: act.name, thesis: act.thesis });
           newPortfolioIds[act.name.toLowerCase()] = portfolio.id;
@@ -682,6 +881,24 @@ export default function ChatPage() {
                           label = `${created ? "Alert updated" : "Update alert"}: ${act.ticker}${act.new_price != null ? ` → $${act.new_price}` : ""}${act.new_condition ? ` ${act.new_condition}` : ""}`;
                         else if (act.type === "delete_alert" && act.ticker)
                           label = `${created ? "Alert deleted" : "Delete alert"}: ${act.ticker}${act.price != null ? ` $${act.price}` : " (all)"}`;
+                        else if (act.type === "rearm_alert" && act.ticker)
+                          label = `${created ? "Alert re-armed" : "Re-arm alert"}: ${act.ticker}`;
+                        else if (act.type === "update_trade" && act.ticker)
+                          label = `${created ? "Trade updated" : "Update trade"}: ${act.ticker}`;
+                        else if (act.type === "delete_trade" && act.ticker)
+                          label = `${created ? "Trade deleted" : "Delete trade"}: ${act.ticker}`;
+                        else if (act.type === "update_watchlist_entry" && act.ticker)
+                          label = `${created ? "Watchlist updated" : "Update watchlist"}: ${act.ticker}`;
+                        else if (act.type === "delete_watchlist_entry" && act.ticker)
+                          label = `${created ? "Watchlist entry deleted" : "Delete watchlist entry"}: ${act.ticker}`;
+                        else if (act.type === "update_journal_note")
+                          label = `${created ? "Note updated" : "Update note"}${act.title ? `: ${act.title}` : ""}`;
+                        else if (act.type === "delete_journal_note")
+                          label = `${created ? "Note deleted" : "Delete note"}${act.title ? `: ${act.title}` : ""}`;
+                        else if (act.type === "update_portfolio" && act.portfolio_name)
+                          label = `${created ? "Portfolio updated" : "Update portfolio"}: ${act.portfolio_name}${act.new_name ? ` → ${act.new_name}` : ""}`;
+                        else if (act.type === "delete_portfolio" && act.portfolio_name)
+                          label = `${created ? "Portfolio deleted" : "Delete portfolio"}: ${act.portfolio_name}`;
                         if (!label) return null;
                         return (
                           <div key={i} className="px-4 pb-3">

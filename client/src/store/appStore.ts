@@ -14,7 +14,16 @@ export interface ChatAction {
     | "assign_to_portfolio"
     | "add_journal_note"
     | "update_alert"
-    | "delete_alert";
+    | "delete_alert"
+    | "update_trade"
+    | "delete_trade"
+    | "update_watchlist_entry"
+    | "delete_watchlist_entry"
+    | "update_journal_note"
+    | "delete_journal_note"
+    | "update_portfolio"
+    | "delete_portfolio"
+    | "rearm_alert";
   // add_alert
   ticker?: string;
   condition?: string;
@@ -54,6 +63,14 @@ export interface ChatAction {
   new_condition?: string;
   new_note?: string;
   old_price?: number;
+  // update_trade
+  new_entry_price?: number;
+  new_shares?: number;
+  new_confidence_tag?: string;
+  new_time_horizon?: string;
+  new_cost_basis?: number;
+  // update_portfolio
+  new_name?: string;
 }
 
 export interface ToolUsed {
