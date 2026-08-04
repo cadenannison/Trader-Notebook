@@ -1044,6 +1044,7 @@ async def _call_gemini_with_tools(
     """Multi-turn Gemini call with function calling. Returns (text_response, tools_used)."""
     contents = history + [{"role": "user", "parts": [{"text": user_message}]}]
     tools_used: list[ToolUsed] = []
+    tool_cache: dict[tuple, tuple[dict, ToolUsed]] = {}
 
     base_body = {
         "system_instruction": {"parts": [{"text": system}]},
@@ -1071,7 +1072,13 @@ async def _call_gemini_with_tools(
         tool_response_parts = []
 
         for fc in function_calls:
-            result, tool_summary = await _execute_tool(fc["name"], fc.get("args", {}), user_id)
+            args = fc.get("args", {})
+            cache_key = (fc["name"], tuple(sorted(args.items())))
+            if cache_key in tool_cache:
+                result, tool_summary = tool_cache[cache_key]
+            else:
+                result, tool_summary = await _execute_tool(fc["name"], args, user_id)
+                tool_cache[cache_key] = (result, tool_summary)
             tools_used.append(tool_summary)
             tool_response_parts.append(
                 {"functionResponse": {"name": fc["name"], "response": result}}
@@ -1145,6 +1152,7 @@ async def _stream_gemini_with_tools(
     """Multi-turn Gemini call that yields SSE-ready event dicts as tools are called."""
     contents = history + [{"role": "user", "parts": [{"text": user_message}]}]
     tools_used: list[ToolUsed] = []
+    tool_cache: dict[tuple, tuple[dict, ToolUsed]] = {}
 
     base_body = {
         "system_instruction": {"parts": [{"text": system}]},
@@ -1196,10 +1204,16 @@ async def _stream_gemini_with_tools(
         tool_response_parts = []
 
         for fc in function_calls:
-            ticker_arg = fc.get("args", {}).get("ticker")
+            args = fc.get("args", {})
+            ticker_arg = args.get("ticker")
             yield {"type": "tool_start", "name": fc["name"], "ticker": ticker_arg}
 
-            result, tool_summary = await _execute_tool(fc["name"], fc.get("args", {}), user_id)
+            cache_key = (fc["name"], tuple(sorted(args.items())))
+            if cache_key in tool_cache:
+                result, tool_summary = tool_cache[cache_key]
+            else:
+                result, tool_summary = await _execute_tool(fc["name"], args, user_id)
+                tool_cache[cache_key] = (result, tool_summary)
             tools_used.append(tool_summary)
 
             # Include small result data for price cards; skip large payloads
