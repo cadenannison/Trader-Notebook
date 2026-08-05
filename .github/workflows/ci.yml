@@ -140,5 +140,8 @@ jobs:
       - name: Test
         run: npm run test -- --run
 
+      - name: Build
+        run: npm run build
+
       - name: Dependency audit
         run: npm audit --audit-level=critical
