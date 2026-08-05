@@ -71,6 +71,8 @@ export interface ChatAction {
   new_cost_basis?: number;
   // update_portfolio
   new_name?: string;
+  // update_journal_note
+  new_title?: string;
 }
 
 export interface ToolUsed {
@@ -94,9 +96,6 @@ export interface ChatMessage {
 }
 
 interface AppState {
-  maintenanceMode: boolean;
-  setMaintenanceMode: (value: boolean) => void;
-
   connectionError: "warming" | "offline" | null;
   setConnectionError: (value: "warming" | "offline" | null) => void;
 
@@ -109,9 +108,6 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
-      maintenanceMode: false,
-      setMaintenanceMode: (value) => set({ maintenanceMode: value }),
-
       connectionError: null,
       setConnectionError: (value) => set({ connectionError: value }),
 

@@ -137,9 +137,9 @@ def test_create_then_update_status(client):
     )
     entry_id = create.json()["id"]
 
-    update = client.put(f"/api/watchlist/{entry_id}", json={"status": "active_trade"})
+    update = client.put(f"/api/watchlist/{entry_id}", json={"status": "watching"})
     assert update.status_code == 200
-    assert update.json()["status"] == "active_trade"
+    assert update.json()["status"] == "watching"
 
 
 def test_update_invalid_status_returns_400(client):
@@ -160,3 +160,54 @@ def test_filter_by_status(client):
     resp = client.get("/api/watchlist?status=watching")
     assert resp.status_code == 200
     assert all(e["status"] == "watching" for e in resp.json())
+
+
+# ── Regression: status can't be set to a trade-driven state directly ─────────
+# active_trade/completed are normally set by create_trade/close_trade based on
+# real trade data. A client PUTting status directly (with no backing trade)
+# would desync the watchlist entry from actual trade state.
+
+
+def test_update_status_to_active_trade_without_backing_trade_returns_400(client):
+    create = client.post(
+        "/api/watchlist",
+        json={"ticker": "NOTRADE1", "reasoning": "No trade backing this."},
+    )
+    entry_id = create.json()["id"]
+
+    resp = client.put(f"/api/watchlist/{entry_id}", json={"status": "active_trade"})
+    assert resp.status_code == 400
+
+
+def test_update_status_to_active_trade_with_backing_open_trade_succeeds(client):
+    create = client.post(
+        "/api/watchlist",
+        json={"ticker": "HASTRADE1", "reasoning": "Backed by a real trade."},
+    )
+    entry_id = create.json()["id"]
+
+    # create_trade already flips the entry to active_trade as a side effect,
+    # but we still exercise the PUT path directly here to confirm it's allowed
+    # once a backing open trade exists.
+    client.post(
+        "/api/trades",
+        json={"ticker": "HASTRADE1", "entry_price": 42.0, "watchlist_entry_id": entry_id},
+    )
+
+    resp = client.put(f"/api/watchlist/{entry_id}", json={"status": "active_trade"})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "active_trade"
+
+
+def test_update_status_to_watching_always_succeeds(client):
+    create = client.post(
+        "/api/watchlist",
+        json={"ticker": "ANYSTATE1", "reasoning": "Manually reactivating an idea."},
+    )
+    entry_id = create.json()["id"]
+
+    # No backing trade of any kind exists — setting status to "watching" is
+    # still legitimately user-settable directly (e.g. manual reactivation).
+    resp = client.put(f"/api/watchlist/{entry_id}", json={"status": "watching"})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "watching"

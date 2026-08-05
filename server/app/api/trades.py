@@ -121,15 +121,47 @@ async def create_trade(
 
     sb = _get_sb()
     if sb:
-        # Optionally transition linked watchlist entry to active_trade
         if body.watchlist_entry_id:
+            existing_open = (
+                sb.table("trades")
+                .select("id")
+                .eq("watchlist_entry_id", body.watchlist_entry_id)
+                .eq("user_id", user_id)
+                .eq("status", "open")
+                .execute()
+            )
+            if existing_open.data:
+                raise HTTPException(
+                    status_code=409,
+                    detail="This watchlist entry already has an open trade",
+                )
+            # Optionally transition linked watchlist entry to active_trade
             sb.table("watchlist_entries").update({"status": "active_trade"}).eq(
                 "id", body.watchlist_entry_id
             ).eq("user_id", user_id).execute()
         return sb.table("trades").insert(row).execute().data[0]
 
+    if body.watchlist_entry_id and any(
+        t["watchlist_entry_id"] == body.watchlist_entry_id
+        and t["user_id"] == user_id
+        and t["status"] == "open"
+        for t in _mock_trades
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="This watchlist entry already has an open trade",
+        )
+
     trade = {"id": str(uuid.uuid4()), **row}
     _mock_trades.append(trade)
+
+    if body.watchlist_entry_id:
+        from app.api.watchlist import _mock_watchlist
+
+        for entry in _mock_watchlist:
+            if entry["id"] == body.watchlist_entry_id and entry["user_id"] == user_id:
+                entry["status"] = "active_trade"
+
     return trade
 
 
@@ -149,16 +181,18 @@ async def close_trade(
 
     sb = _get_sb()
     if sb:
-        # Fetch the trade to get entry_price and watchlist_entry_id
+        # Fetch the trade to get entry_price, watchlist_entry_id, and current status
         existing = (
             sb.table("trades")
-            .select("entry_price, watchlist_entry_id")
+            .select("entry_price, watchlist_entry_id, status")
             .eq("id", trade_id)
             .eq("user_id", user_id)
             .execute()
         )
         if not existing.data:
             raise HTTPException(status_code=404, detail="Trade not found")
+        if existing.data[0]["status"] == "closed":
+            raise HTTPException(status_code=409, detail="Trade is already closed")
 
         entry_price = existing.data[0]["entry_price"]
         watchlist_entry_id = existing.data[0].get("watchlist_entry_id")
@@ -187,6 +221,8 @@ async def close_trade(
     # Mock path
     for trade in _mock_trades:
         if trade["id"] == trade_id and trade["user_id"] == user_id:
+            if trade["status"] == "closed":
+                raise HTTPException(status_code=409, detail="Trade is already closed")
             ep = trade["entry_price"]
             return_pct = round((body.exit_price - ep) / ep * 100, 4) if ep else 0.0
             mock_updates = {
@@ -199,6 +235,15 @@ async def close_trade(
             if body.post_trade_notes is not None:
                 mock_updates["post_trade_notes"] = body.post_trade_notes
             trade.update(mock_updates)
+
+            watchlist_entry_id = trade.get("watchlist_entry_id")
+            if watchlist_entry_id and body.exit_reason != "needed_capital":
+                from app.api.watchlist import _mock_watchlist
+
+                for entry in _mock_watchlist:
+                    if entry["id"] == watchlist_entry_id and entry["user_id"] == user_id:
+                        entry["status"] = "completed"
+
             return trade
     raise HTTPException(status_code=404, detail="Trade not found")
 
@@ -225,7 +270,11 @@ async def update_trade(
             detail=f"exit_reason must be one of: {', '.join(sorted(_VALID_EXIT_REASONS))}",
         )
 
-    updates: dict = {k: v for k, v in body.model_dump().items() if v is not None}
+    # exclude_unset (not `v is not None`) so a field the client explicitly
+    # sends as null (e.g. clearing shares/cost_basis/pre_trade_notes) is
+    # actually applied, while fields the client never mentioned are left
+    # untouched — filtering on `v is not None` couldn't tell those apart.
+    updates: dict = body.model_dump(exclude_unset=True)
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
 
@@ -242,6 +291,11 @@ async def update_trade(
             raise HTTPException(status_code=404, detail="Trade not found")
 
         row = existing.data[0]
+        if row["status"] == "open" and ("exit_price" in updates or "exit_reason" in updates):
+            raise HTTPException(
+                status_code=400,
+                detail="Use PUT /trades/{id}/close to close an open trade, not this endpoint",
+            )
         if row["status"] == "closed":
             new_entry = updates.get("entry_price", row["entry_price"])
             new_exit = updates.get("exit_price", row["exit_price"])
@@ -255,6 +309,11 @@ async def update_trade(
 
     for trade in _mock_trades:
         if trade["id"] == trade_id and trade["user_id"] == user_id:
+            if trade["status"] == "open" and ("exit_price" in updates or "exit_reason" in updates):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Use PUT /trades/{id}/close to close an open trade, not this endpoint",
+                )
             trade.update(updates)
             ep = trade.get("entry_price")
             if trade["status"] == "closed" and trade.get("exit_price") and ep:
@@ -268,14 +327,49 @@ async def delete_trade(trade_id: str, user_id: str = Depends(get_current_user)):
     global _mock_trades
     sb = _get_sb()
     if sb:
+        existing = (
+            sb.table("trades")
+            .select("status, watchlist_entry_id")
+            .eq("id", trade_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if not existing.data:
+            raise HTTPException(status_code=404, detail="Trade not found")
+
+        status = existing.data[0]["status"]
+        watchlist_entry_id = existing.data[0].get("watchlist_entry_id")
+
         result = sb.table("trades").delete().eq("id", trade_id).eq("user_id", user_id).execute()
         if not result.data:
             raise HTTPException(status_code=404, detail="Trade not found")
+
+        # Deleting the trade that put a watchlist entry into "active_trade" should
+        # revert it to "watching" — otherwise the entry is stuck showing a live
+        # position that no longer has a backing trade. Only revert if it's still
+        # in the state this trade caused (don't clobber a manually-set status),
+        # and only for open trades — a closed trade's entry is "completed", which
+        # deleting historical P&L shouldn't silently undo.
+        if status == "open" and watchlist_entry_id:
+            sb.table("watchlist_entries").update({"status": "watching"}).eq(
+                "id", watchlist_entry_id
+            ).eq("user_id", user_id).eq("status", "active_trade").execute()
         return
 
     before = len(_mock_trades)
+    deleted = [
+        t for t in _mock_trades if t["id"] == trade_id and t["user_id"] == user_id
+    ]
     _mock_trades = [
         t for t in _mock_trades if not (t["id"] == trade_id and t["user_id"] == user_id)
     ]
     if len(_mock_trades) == before:
         raise HTTPException(status_code=404, detail="Trade not found")
+
+    trade = deleted[0]
+    if trade["status"] == "open" and trade.get("watchlist_entry_id"):
+        from app.api.watchlist import _mock_watchlist
+
+        for entry in _mock_watchlist:
+            if entry["id"] == trade["watchlist_entry_id"] and entry["status"] == "active_trade":
+                entry["status"] = "watching"

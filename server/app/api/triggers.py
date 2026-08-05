@@ -118,6 +118,14 @@ async def create_trigger(body: CreateTriggerRequest, user_id: str = Depends(get_
         if body.condition not in ("above", "below", None):
             raise HTTPException(status_code=400, detail="condition must be 'above', 'below', or omitted for pct_move")
 
+    reference_price = body.reference_price
+    if body.trigger_type == "pct_move" and reference_price is None:
+        # Docstring on CreateTriggerRequest.reference_price promises this
+        # fallback; without it, a pct_move trigger created with neither field
+        # set silently never fires (worker's own fallback is a pure safety
+        # net, not a substitute for setting this correctly at creation time).
+        reference_price = body.target_price
+
     sb = _get_sb()
     now = datetime.now(timezone.utc).isoformat()
     row = {
@@ -127,7 +135,7 @@ async def create_trigger(body: CreateTriggerRequest, user_id: str = Depends(get_
         "condition": body.condition,
         "trigger_type": body.trigger_type,
         "threshold_pct": body.threshold_pct,
-        "reference_price": body.reference_price,
+        "reference_price": reference_price,
         "is_active": True,
         "auto_disarm": body.auto_disarm,
         "cooldown_hours": body.cooldown_hours,

@@ -2,7 +2,11 @@ name: Daily Briefing
 
 on:
   schedule:
-    - cron: "0 13 * * 1-5"  # 8 AM ET (UTC-5), weekdays only
+    # Fixed UTC cron can't track US DST, so both offsets are scheduled;
+    # daily_briefing.py's _in_send_window() only actually sends from
+    # whichever of these is correct for the current date.
+    - cron: "0 12 * * 1-5"  # 8 AM EDT (UTC-4), weekdays only
+    - cron: "0 13 * * 1-5"  # 8 AM EST (UTC-5), weekdays only
   workflow_dispatch:
 
 concurrency:

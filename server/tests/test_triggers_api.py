@@ -146,6 +146,25 @@ def test_create_pct_move_trigger(client):
     assert data["threshold_pct"] == 5.0
 
 
+def test_create_pct_move_reference_price_defaults_to_target_price(client):
+    # Docstring on CreateTriggerRequest.reference_price promises this fallback;
+    # without it, a pct_move trigger created with both target_price and
+    # reference_price present-but-no-explicit-reference would silently never
+    # fire (worker only rebases off reference_price/target_price at check time).
+    resp = client.post(
+        "/api/triggers",
+        json={
+            "ticker": "NVDA",
+            "trigger_type": "pct_move",
+            "threshold_pct": 5.0,
+            "target_price": 900.0,
+        },
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["reference_price"] == 900.0
+
+
 def test_create_pct_move_missing_threshold_returns_400(client):
     resp = client.post(
         "/api/triggers",

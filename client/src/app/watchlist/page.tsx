@@ -361,6 +361,7 @@ export default function WatchlistPage() {
   );
   const { mutateAsync: deleteEntry } = useDeleteWatchlistEntry();
   const { mutateAsync: createEntry } = useCreateWatchlistEntry();
+  const { mutateAsync: updateEntry } = useUpdateWatchlistEntry();
   const { push: pushUndo } = useUndoStore();
 
   function handleDelete(entry: WatchlistEntry) {
@@ -380,6 +381,12 @@ export default function WatchlistPage() {
           stop_price: snap.stop_price,
         });
         ids.current = created.id;
+        // createWatchlistEntry always inserts with status "watching" server-side
+        // (there's no way to set status on create) — restore the real status
+        // if the deleted entry had progressed beyond that.
+        if (snap.status !== "watching") {
+          await updateEntry({ id: created.id, status: snap.status });
+        }
       },
       redo: async () => {
         await deleteEntry(ids.current);

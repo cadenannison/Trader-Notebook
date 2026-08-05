@@ -11,8 +11,11 @@ import os
 from datetime import datetime
 
 import httpx
+import pytz
 import resend
 from supabase import create_client
+
+ET = pytz.timezone("America/New_York")
 
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
@@ -35,8 +38,100 @@ if SENTRY_DSN:
 sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 
+def _in_send_window(
+    target_hour: int, tolerance_minutes: int = 20, *, now: datetime | None = None
+) -> bool:
+    """True if it's currently within `tolerance_minutes` of `target_hour`:00
+    America/New_York time.
+
+    GitHub Actions cron is fixed UTC with no DST awareness, so the workflow
+    schedules two triggers bracketing the DST transition (e.g. 12:00 and
+    13:00 UTC for an 8 AM ET target). This picks whichever one is actually
+    correct right now and no-ops the other, instead of silently sending an
+    hour early/late for months at a time.
+
+    `now` is an injection point for tests; production always omits it.
+    """
+    now_et = (now or datetime.now(ET)).astimezone(ET)
+    target = now_et.replace(hour=target_hour, minute=0, second=0, microsecond=0)
+    return abs((now_et - target).total_seconds()) <= tolerance_minutes * 60
+
+
+def _daily_briefing_already_sent(now_et: datetime) -> bool:
+    """True if a briefing has already been sent today (America/New_York date).
+
+    The send-window guard above only protects the two scheduled dual-cron
+    triggers from double-sending across the DST transition; a manual
+    workflow_dispatch re-run bypasses that guard entirely (by design, so
+    reruns work outside the window) and would otherwise re-send to every
+    subscriber. This checks the `system_config` bookkeeping row instead.
+    """
+    try:
+        result = (
+            sb.table("system_config")
+            .select("value")
+            .eq("key", "daily_briefing_last_sent_date")
+            .single()
+            .execute()
+        )
+        return result.data["value"] == now_et.date().isoformat()
+    except Exception:
+        return False
+
+
+def _record_daily_briefing_sent(now_et: datetime) -> None:
+    try:
+        sb.table("system_config").upsert(
+            {"key": "daily_briefing_last_sent_date", "value": now_et.date().isoformat()}
+        ).execute()
+    except Exception:
+        pass
+
+
 def _fmt_pct(pct: float) -> str:
     return f"+{pct:.1f}%" if pct > 0 else f"{pct:.1f}%"
+
+
+def _consecutive_streak(trades: list[dict], predicate) -> int:
+    """Count how many of the most recent trades (walking backward from index 0,
+    the most recent) match `predicate`, stopping at the first non-match — a true
+    consecutive streak rather than an occurrence count anywhere in the window."""
+    streak = 0
+    for t in trades:
+        if predicate(t):
+            streak += 1
+        else:
+            break
+    return streak
+
+
+def _behavioral_alerts(recent_closed: list[dict]) -> list[str]:
+    """Build FOMO / panic-sold streak alerts from the most-recent-first list of
+    closed trades. Streaks are consecutive runs from the most recent trade
+    backward; the alert wording reflects the actual number of trades considered
+    (`len(recent_closed)`, capped upstream at 10) instead of a hardcoded count."""
+    alerts: list[str] = []
+    if len(recent_closed) < 2:
+        return alerts
+
+    window_size = len(recent_closed)
+    fomo_run = _consecutive_streak(
+        recent_closed, lambda t: t.get("confidence_tag") == "fomo"
+    )
+    panic_run = _consecutive_streak(
+        recent_closed, lambda t: t.get("exit_reason") == "panic_sold"
+    )
+    if fomo_run >= 2:
+        alerts.append(
+            f"You've entered {fomo_run} of your last {window_size} trades on FOMO. "
+            "Review whether each setup met your original criteria before entering today."
+        )
+    if panic_run >= 2:
+        alerts.append(
+            f"You've panic-sold {panic_run} of your last {window_size} trades. "
+            "Consider setting hard stops in advance so emotion doesn't drive your exits."
+        )
+    return alerts
 
 
 def _build_email(user_email: str, briefing: dict) -> str:
@@ -145,8 +240,14 @@ async def _get_active_users() -> list[dict]:
     for uid in user_ids:
         try:
             resp = sb.auth.admin.get_user_by_id(uid)
-            if resp.user and resp.user.email:
-                users.append({"id": uid, "email": resp.user.email})
+            if not (resp.user and resp.user.email):
+                continue
+            # Settings page defaults this toggle to on, so only an explicit
+            # `false` opts a user out — an unset/missing flag must still send.
+            metadata = resp.user.user_metadata or {}
+            if metadata.get("briefing_enabled") is False:
+                continue
+            users.append({"id": uid, "email": resp.user.email})
         except Exception:
             pass
     return users
@@ -254,7 +355,6 @@ async def _generate_briefing(user_id: str) -> dict:
                 )
 
     # Behavioral flags
-    behavioral_alerts: list[str] = []
     recent_closed = (
         sb.table("trades")
         .select("ticker,confidence_tag,exit_reason,return_pct")
@@ -266,27 +366,7 @@ async def _generate_briefing(user_id: str) -> dict:
         .data
         or []
     )
-    if len(recent_closed) >= 2:
-        fomo_run = sum(
-            1
-            for t in recent_closed[:5]
-            if t.get("confidence_tag") == "fomo"
-        )
-        panic_run = sum(
-            1
-            for t in recent_closed[:5]
-            if t.get("exit_reason") == "panic_sold"
-        )
-        if fomo_run >= 2:
-            behavioral_alerts.append(
-                f"You've entered {fomo_run} of your last 5 trades on FOMO. "
-                "Review whether each setup met your original criteria before entering today."
-            )
-        if panic_run >= 2:
-            behavioral_alerts.append(
-                f"You've panic-sold {panic_run} of your last 5 trades. "
-                "Consider setting hard stops in advance so emotion doesn't drive your exits."
-            )
+    behavioral_alerts = _behavioral_alerts(recent_closed)
 
     # Coaching insight
     insight = None
@@ -360,6 +440,18 @@ async def main() -> None:
         f"[briefing] Starting daily briefing — {datetime.now().strftime('%Y-%m-%d %H:%M')}"
     )
 
+    now_et = datetime.now(ET)
+
+    # Manual reruns (workflow_dispatch) should still work outside the window;
+    # only the scheduled dual-cron triggers need this gate.
+    if os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch" and not _in_send_window(8, now=now_et):
+        print(f"[briefing] Outside the 8 AM ET send window (now {now_et.strftime('%H:%M %Z')}) — skipping")
+        return
+
+    if _daily_briefing_already_sent(now_et):
+        print(f"[briefing] Already sent today ({now_et.date().isoformat()} ET) — skipping duplicate run")
+        return
+
     if not RESEND_API_KEY:
         print("[briefing] RESEND_API_KEY not set — skipping email delivery")
         return
@@ -388,6 +480,7 @@ async def main() -> None:
         except Exception as exc:
             print(f"  [briefing] Failed for {user['email']}: {exc}")
 
+    _record_daily_briefing_sent(now_et)
     print("[briefing] Done")
 
 

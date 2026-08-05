@@ -11,9 +11,12 @@ import os
 from datetime import datetime, timedelta, timezone
 
 import httpx
+import pytz
 import resend
 import sentry_sdk
 from supabase import create_client
+
+ET = pytz.timezone("America/New_York")
 
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
@@ -33,16 +36,82 @@ resend.api_key = RESEND_API_KEY
 sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 
+def _in_send_window(
+    target_weekday: int,
+    target_hour: int,
+    tolerance_minutes: int = 20,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """True if it's currently within `tolerance_minutes` of `target_hour`:00
+    America/New_York time on `target_weekday` (Monday=0 .. Sunday=6).
+
+    GitHub Actions cron is fixed UTC with no DST awareness, so the workflow
+    schedules two triggers bracketing the DST transition (e.g. 20:00 and
+    21:00 UTC for a Friday 5 PM ET target). This picks whichever one is
+    actually correct right now and no-ops the other, instead of silently
+    sending an hour early/late for months at a time.
+
+    `now` is an injection point for tests; production always omits it.
+    """
+    now_et = (now or datetime.now(ET)).astimezone(ET)
+    if now_et.weekday() != target_weekday:
+        return False
+    target = now_et.replace(hour=target_hour, minute=0, second=0, microsecond=0)
+    return abs((now_et - target).total_seconds()) <= tolerance_minutes * 60
+
+
+def _weekly_digest_already_sent(now_et: datetime) -> bool:
+    """True if a digest has already been sent this ISO week (America/New_York).
+
+    The send-window guard above only protects the two scheduled dual-cron
+    triggers from double-sending across the DST transition; a manual
+    workflow_dispatch re-run bypasses that guard entirely (by design, so
+    reruns work outside the window) and would otherwise re-send to every
+    subscriber. This checks the `system_config` bookkeeping row instead.
+    """
+    try:
+        result = (
+            sb.table("system_config")
+            .select("value")
+            .eq("key", "weekly_digest_last_sent_week")
+            .single()
+            .execute()
+        )
+        iso_year, iso_week, _ = now_et.isocalendar()
+        return result.data["value"] == f"{iso_year}-W{iso_week:02d}"
+    except Exception:
+        return False
+
+
+def _record_weekly_digest_sent(now_et: datetime) -> None:
+    iso_year, iso_week, _ = now_et.isocalendar()
+    try:
+        sb.table("system_config").upsert(
+            {"key": "weekly_digest_last_sent_week", "value": f"{iso_year}-W{iso_week:02d}"}
+        ).execute()
+    except Exception:
+        pass
+
+
 def _fmt_pct(pct: float) -> str:
     return f"+{pct:.1f}%" if pct > 0 else f"{pct:.1f}%"
 
 
+def _week_label(now: datetime | None = None) -> str:
+    """Label for the rolling 7-day window used by _generate_digest's `since` query.
+
+    Must stay in sync with the lookback there (`now - timedelta(days=7)`) so the
+    email header always describes exactly the window the stats were computed over.
+    """
+    now = now or datetime.now()
+    window_start = now - timedelta(days=7)
+    return f"{window_start.strftime('%b %-d')} – {now.strftime('%b %-d')}"
+
+
 def _build_email(user_email: str, digest: dict) -> str:
     now = datetime.now()
-    # Week window: last Mon through last Sun (or current day)
-    weekday = now.weekday()  # 0=Mon, 4=Fri
-    week_start = (now - timedelta(days=weekday + 7)).strftime("%b %-d")
-    week_end = (now - timedelta(days=weekday + 1)).strftime("%b %-d")
+    week_label = _week_label(now)
 
     total_closed = digest.get("total_closed", 0)
     wins = digest.get("wins", 0)
@@ -67,7 +136,7 @@ def _build_email(user_email: str, digest: dict) -> str:
               font-weight:800;font-size:13px;color:#1a7a4a;letter-spacing:-0.3px;">tN</div>
 </div>
 <h1 style="font-size:20px;font-weight:700;margin:16px 0 4px">Weekly Digest</h1>
-<p style="color:#64748b;font-size:13px;margin:0 0 24px">{week_start} – {week_end}</p>
+<p style="color:#64748b;font-size:13px;margin:0 0 24px">{week_label}</p>
 
 <h2 style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
             color:#94a3b8;margin:0 0 8px">Weekly Summary</h2>
@@ -235,6 +304,19 @@ async def main() -> None:
         f"[weekly-digest] Starting weekly digest — {datetime.now().strftime('%Y-%m-%d %H:%M')}"
     )
 
+    now_et = datetime.now(ET)
+
+    # Manual reruns (workflow_dispatch) should still work outside the window;
+    # only the scheduled dual-cron triggers need this gate. Friday=4.
+    if os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch" and not _in_send_window(4, 17, now=now_et):
+        print(f"[weekly-digest] Outside the Friday 5 PM ET send window (now {now_et.strftime('%a %H:%M %Z')}) — skipping")
+        return
+
+    if _weekly_digest_already_sent(now_et):
+        iso_year, iso_week, _ = now_et.isocalendar()
+        print(f"[weekly-digest] Already sent this week ({iso_year}-W{iso_week:02d}) — skipping duplicate run")
+        return
+
     if not RESEND_API_KEY:
         print("[weekly-digest] RESEND_API_KEY not set — skipping email delivery")
         return
@@ -242,11 +324,7 @@ async def main() -> None:
     users = await _get_active_users()
     print(f"[weekly-digest] {len(users)} active user(s)")
 
-    now = datetime.now()
-    weekday = now.weekday()
-    week_start = (now - timedelta(days=weekday + 7)).strftime("%b %-d")
-    week_end = (now - timedelta(days=weekday + 1)).strftime("%b %-d")
-    subject = f"tradrNotebook — Weekly Digest {week_start} – {week_end}"
+    subject = f"tradrNotebook — Weekly Digest {_week_label()}"
 
     for user in users:
         print(f"[weekly-digest] Generating for {user['email']}")
@@ -265,6 +343,7 @@ async def main() -> None:
         except Exception as exc:
             print(f"  [weekly-digest] Failed for {user['email']}: {exc}")
 
+    _record_weekly_digest_sent(now_et)
     print("[weekly-digest] Done")
 
 

@@ -97,6 +97,7 @@ export interface Trade {
   return_pct: number | null;
   status: "open" | "closed";
   pre_trade_notes: string | null;
+  post_trade_notes: string | null;
   logged_at: string;
   closed_at: string | null;
 }

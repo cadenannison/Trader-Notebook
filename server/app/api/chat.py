@@ -3,9 +3,11 @@ import re
 from typing import AsyncGenerator, Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.config import settings
 from app.middleware.auth import get_current_user
@@ -101,6 +103,7 @@ _STOP_WORDS = {
 }
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 _TOOL_DECLARATIONS = [
     {
@@ -380,12 +383,12 @@ delete_watchlist_entry — remove a watchlist idea
   ticker
 
 update_journal_note — edit an existing journal note
-  Identify the note via ticker tag or title match against get_notes results — include whichever of title/tags the user's request maps to, so the client can resolve it
-  title (optional — the note's current title, to help identify it), content (optional — new content), tags (optional — new tags)
+  Identify the note via ticker tag or title match against get_notes results — you MUST include at least one of title/tags so the client can resolve which note is meant; never emit this action with both omitted
+  title (optional — the note's current title, to help identify it), content (optional — new content), tags (optional — new tags), new_title (optional — renames the note; title still identifies the existing note to match)
   Only proceed if exactly one note matches; otherwise ask a clarifying question (see rule 16)
 
 delete_journal_note — delete an existing journal note
-  Same identification approach as update_journal_note: title and/or tags to match against get_notes results
+  Same identification approach as update_journal_note: title and/or tags to match against get_notes results — you MUST include at least one; never emit this action with both omitted
   title (optional), tags (optional)
 
 update_portfolio — rename or update a portfolio's thesis
@@ -524,6 +527,8 @@ class ChatAction(BaseModel):
     new_cost_basis: Optional[float] = None
     # update_portfolio
     new_name: Optional[str] = None
+    # update_journal_note
+    new_title: Optional[str] = None
 
 
 class ToolUsed(BaseModel):
@@ -1049,10 +1054,16 @@ async def _call_gemini_with_tools(
     base_body = {
         "system_instruction": {"parts": [{"text": system}]},
         "tools": _TOOL_DECLARATIONS,
+        # NOTE: no responseMimeType here. Forcing "application/json" alongside
+        # `tools` makes the model get stuck permanently in function-calling
+        # mode — it never emits the final text part, so the loop burns through
+        # every round and always hits the generic failure message (confirmed
+        # by direct repro against the live API). The system prompt's own
+        # "return ONLY valid JSON" instruction plus the markdown-fence-strip
+        # fallback below is what actually keeps output well-formed.
         "generationConfig": {
             "temperature": 0.65,
             "maxOutputTokens": 1024,
-            "responseMimeType": "application/json",
         },
     }
 
@@ -1107,7 +1118,8 @@ def _fallback_response(message: str) -> ChatResponse:
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(body: ChatRequest, user_id: str = Depends(get_current_user)):
+@limiter.limit("20/minute")
+async def chat(body: ChatRequest, request: Request, user_id: str = Depends(get_current_user)):
     if len(body.message) > _MAX_MSG_LEN:
         raise HTTPException(status_code=400, detail="Message too long")
     if _is_injection_attempt(body.message):
@@ -1157,10 +1169,16 @@ async def _stream_gemini_with_tools(
     base_body = {
         "system_instruction": {"parts": [{"text": system}]},
         "tools": _TOOL_DECLARATIONS,
+        # NOTE: no responseMimeType here. Forcing "application/json" alongside
+        # `tools` makes the model get stuck permanently in function-calling
+        # mode — it never emits the final text part, so the loop burns through
+        # every round and always hits the generic failure message (confirmed
+        # by direct repro against the live API). The system prompt's own
+        # "return ONLY valid JSON" instruction plus the markdown-fence-strip
+        # fallback below is what actually keeps output well-formed.
         "generationConfig": {
             "temperature": 0.65,
             "maxOutputTokens": 1024,
-            "responseMimeType": "application/json",
         },
     }
 
@@ -1241,7 +1259,8 @@ async def _stream_gemini_with_tools(
 
 
 @router.post("/chat/stream")
-async def chat_stream(body: ChatRequest, user_id: str = Depends(get_current_user)):
+@limiter.limit("20/minute")
+async def chat_stream(body: ChatRequest, request: Request, user_id: str = Depends(get_current_user)):
     if len(body.message) > _MAX_MSG_LEN:
         raise HTTPException(status_code=400, detail="Message too long")
     if _is_injection_attempt(body.message):

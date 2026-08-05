@@ -72,13 +72,17 @@ async def update_portfolio(
     body: UpdatePortfolioRequest,
     user_id: str = Depends(get_current_user),
 ):
+    fields_set = body.model_fields_set
     updates: dict = {}
     if body.name is not None:
         if not body.name.strip():
             raise HTTPException(status_code=400, detail="name cannot be empty")
         updates["name"] = body.name.strip()
-    if body.thesis is not None:
-        updates["thesis"] = body.thesis
+    if "thesis" in fields_set:
+        # Client explicitly sent thesis (possibly ""/null to clear it) — don't
+        # drop that just because it's falsy, only skip when the field was
+        # never mentioned at all.
+        updates["thesis"] = (body.thesis.strip() or None) if body.thesis else None
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
 

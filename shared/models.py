@@ -63,17 +63,28 @@ class UserNote(BaseModel):
     created_at: str
 
 
+class TriggerType(str, Enum):
+    price_level = "price_level"
+    pct_move = "pct_move"
+    earnings_warning = "earnings_warning"
+
+
 class PriceTrigger(BaseModel):
     model_config = ConfigDict(strict=True)
     id: str
     ticker: str
-    target_price: float
-    condition: TriggerCondition
+    target_price: Optional[float] = None
+    condition: Optional[TriggerCondition] = None
+    trigger_type: TriggerType = TriggerType.price_level
+    threshold_pct: Optional[float] = None
+    reference_price: Optional[float] = None
     is_active: bool
     auto_disarm: bool = True
     cooldown_hours: int = 4
     last_triggered_at: Optional[str] = None
     watchlist_entry_id: Optional[str] = None
+    notes: Optional[str] = None
+    portfolio_id: Optional[str] = None
 
 
 class WatchlistEntry(BaseModel):
@@ -106,6 +117,7 @@ class Trade(BaseModel):
     return_pct: Optional[float] = None
     status: str  # "open" | "closed"
     pre_trade_notes: Optional[str] = None
+    post_trade_notes: Optional[str] = None
     logged_at: str
     closed_at: Optional[str] = None
 
