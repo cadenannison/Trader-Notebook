@@ -34,7 +34,7 @@ async def export_user_data(user_id: str = Depends(get_current_user)):
     notes = []
     for n in raw_notes:
         try:
-            content = decrypt(bytes(n["encrypted_content"]), key)
+            content = decrypt(bytes.fromhex(n["encrypted_content"]), key)
         except Exception:
             content = "[decryption failed]"
         notes.append(
@@ -58,7 +58,7 @@ async def export_user_data(user_id: str = Depends(get_current_user)):
     journal_notes = []
     for jn in raw_jnotes:
         try:
-            content = decrypt(bytes(jn["encrypted_content"]), key)
+            content = decrypt(bytes.fromhex(jn["encrypted_content"]), key)
         except Exception:
             content = "[decryption failed]"
         journal_notes.append(

@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 
 import { supabase } from "@/lib/supabase";
 import api from "@/lib/api";
-import { useAppStore } from "@/store/appStore";
+import {
+  useMaintenanceMode,
+  useSetMaintenanceMode,
+} from "@/hooks/useMaintenanceMode";
 
 function SettingsSection({
   title,
@@ -50,17 +53,20 @@ function SettingsRow({
 function Toggle({
   checked,
   onChange,
+  disabled,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative w-10 h-[22px] rounded-full transition-colors focus:outline-none ${checked ? "bg-brand" : "bg-slate-200"}`}
+      className={`relative w-10 h-[22px] rounded-full transition-colors focus:outline-none disabled:opacity-50 ${checked ? "bg-brand" : "bg-slate-200"}`}
     >
       <span
         className={`absolute top-[3px] left-[3px] w-4 h-4 bg-white rounded-full shadow transition-transform ${checked ? "translate-x-[18px]" : ""}`}
@@ -127,9 +133,9 @@ function DeleteModal({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
-  const { maintenanceMode, setMaintenanceMode } = useAppStore();
-  const [alertNotifications, setAlertNotifications] = useState(true);
-  const [marketReminder, setMarketReminder] = useState(false);
+  const { data: maintenanceMode = false } = useMaintenanceMode();
+  const { mutate: setMaintenanceMode, isPending: maintenanceModePending } =
+    useSetMaintenanceMode();
 
   // Username
   const [username, setUsername] = useState("");
@@ -166,26 +172,37 @@ export default function SettingsPage() {
 
   async function handleSaveProfile() {
     setProfileSaving(true);
-    await supabase.auth.updateUser({
-      data: {
-        account_size: accountSize ? parseFloat(accountSize) : null,
-        risk_pct_per_trade: parseFloat(riskPct) || 1,
-        trading_style: tradingStyle,
-        briefing_enabled: briefingEnabled,
-      },
-    });
-    setProfileSaving(false);
-    setProfileSaved(true);
-    setTimeout(() => setProfileSaved(false), 2000);
+    try {
+      const parsedRiskPct = parseFloat(riskPct);
+      await supabase.auth.updateUser({
+        data: {
+          account_size: accountSize ? parseFloat(accountSize) : null,
+          risk_pct_per_trade: Number.isNaN(parsedRiskPct) ? 1 : parsedRiskPct,
+          trading_style: tradingStyle,
+          briefing_enabled: briefingEnabled,
+        },
+      });
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 2000);
+    } catch {
+      alert("Save failed. Try again.");
+    } finally {
+      setProfileSaving(false);
+    }
   }
 
   async function handleSaveUsername() {
     if (!username.trim()) return;
     setUsernameSaving(true);
-    await supabase.auth.updateUser({ data: { username: username.trim() } });
-    setUsernameSaving(false);
-    setUsernameSaved(true);
-    setTimeout(() => setUsernameSaved(false), 2000);
+    try {
+      await supabase.auth.updateUser({ data: { username: username.trim() } });
+      setUsernameSaved(true);
+      setTimeout(() => setUsernameSaved(false), 2000);
+    } catch {
+      alert("Save failed. Try again.");
+    } finally {
+      setUsernameSaving(false);
+    }
   }
 
   async function handleExport() {
@@ -334,37 +351,17 @@ export default function SettingsPage() {
         </div>
       </SettingsSection>
 
-      <SettingsSection title="Notifications">
-        <div className="bg-white border border-brand-subtle rounded-xl divide-y divide-brand-subtle">
-          <div className="px-4">
-            <SettingsRow
-              label="Alert notifications"
-              description="Desktop notification when a price alert triggers."
-            >
-              <Toggle
-                checked={alertNotifications}
-                onChange={setAlertNotifications}
-              />
-            </SettingsRow>
-          </div>
-          <div className="px-4">
-            <SettingsRow
-              label="Market open reminder"
-              description="Remind me when US markets open at 9:30 AM ET."
-            >
-              <Toggle checked={marketReminder} onChange={setMarketReminder} />
-            </SettingsRow>
-          </div>
-        </div>
-      </SettingsSection>
-
       <SettingsSection title="System">
         <div className="bg-white border border-brand-subtle rounded-xl px-4">
           <SettingsRow
             label="Maintenance mode"
             description="Halts all workers and alert checks instantly without a redeploy."
           >
-            <Toggle checked={maintenanceMode} onChange={setMaintenanceMode} />
+            <Toggle
+              checked={maintenanceMode}
+              disabled={maintenanceModePending}
+              onChange={setMaintenanceMode}
+            />
           </SettingsRow>
         </div>
         {maintenanceMode && (

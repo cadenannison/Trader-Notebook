@@ -73,6 +73,35 @@ def test_delete_nonexistent_portfolio_returns_404(client):
     assert resp.status_code == 404
 
 
+def test_update_portfolio_can_clear_thesis(client):
+    """A client explicitly sending an empty/null thesis is asking to clear
+    it — `if body.thesis is not None` filtering couldn't tell that apart
+    from thesis never being mentioned, so the old thesis text stuck around
+    forever. model_fields_set fixes this."""
+    create = client.post(
+        "/api/portfolios",
+        json={"name": "Clearable", "thesis": "original thesis"},
+    )
+    portfolio_id = create.json()["id"]
+    assert create.json()["thesis"] == "original thesis"
+
+    resp = client.put(f"/api/portfolios/{portfolio_id}", json={"thesis": ""})
+    assert resp.status_code == 200
+    assert resp.json()["thesis"] is None
+
+
+def test_update_portfolio_omitted_thesis_untouched(client):
+    create = client.post(
+        "/api/portfolios",
+        json={"name": "Untouched", "thesis": "keep me"},
+    )
+    portfolio_id = create.json()["id"]
+
+    resp = client.put(f"/api/portfolios/{portfolio_id}", json={"name": "Renamed"})
+    assert resp.status_code == 200
+    assert resp.json()["thesis"] == "keep me"
+
+
 def test_create_then_list(client):
     client.post("/api/portfolios", json={"name": "Listed Portfolio"})
     resp = client.get("/api/portfolios")

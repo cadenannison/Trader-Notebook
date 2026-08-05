@@ -1,9 +1,13 @@
 "use client";
 
-import { useAppStore } from "@/store/appStore";
+import {
+  useMaintenanceMode,
+  useSetMaintenanceMode,
+} from "@/hooks/useMaintenanceMode";
 
 export function KillSwitch() {
-  const { maintenanceMode, setMaintenanceMode } = useAppStore();
+  const { data: maintenanceMode = false } = useMaintenanceMode();
+  const { mutate: setMaintenanceMode, isPending } = useSetMaintenanceMode();
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 space-y-4">
@@ -20,8 +24,9 @@ export function KillSwitch() {
           type="button"
           role="switch"
           aria-checked={maintenanceMode}
+          disabled={isPending}
           onClick={() => setMaintenanceMode(!maintenanceMode)}
-          className={`relative w-11 h-6 rounded-full transition-colors focus:outline-none shrink-0 mt-0.5 ${
+          className={`relative w-11 h-6 rounded-full transition-colors focus:outline-none shrink-0 mt-0.5 disabled:opacity-50 ${
             maintenanceMode ? "bg-red-500" : "bg-zinc-600"
           }`}
         >

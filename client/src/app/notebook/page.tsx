@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { clsx } from "clsx";
 import { FolderOpen, Plus, Trash2, X } from "lucide-react";
@@ -19,7 +19,12 @@ import {
   EXIT_REASON_LABELS,
   TIME_HORIZON_LABELS,
 } from "@/hooks/useTrades";
-import { useTriggers, useUpdateTrigger } from "@/hooks/useTriggers";
+import {
+  useTriggers,
+  useUpdateTrigger,
+  useRearmTrigger,
+  useDeleteTrigger,
+} from "@/hooks/useTriggers";
 import {
   useJournalNotes,
   useCreateJournalNote,
@@ -430,10 +435,9 @@ function PortfolioModal({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (portfolio) {
-      update(
-        { id: portfolio.id, name, thesis: thesis || undefined },
-        { onSuccess: onClose }
-      );
+      // Send `thesis` as-is (even "") so clearing an existing thesis actually
+      // reaches the server instead of being dropped as `undefined`.
+      update({ id: portfolio.id, name, thesis }, { onSuccess: onClose });
     } else {
       create({ name, thesis: thesis || undefined }, { onSuccess: onClose });
     }
@@ -527,6 +531,15 @@ function PortfolioDetail({
   const portfolioNotes = allNotes.filter((n) =>
     portfolioTickers.includes(n.ticker)
   );
+
+  // Re-sync the selected note ticker if it's no longer part of this
+  // portfolio (e.g. its trigger was removed via "Remove from portfolio").
+  useEffect(() => {
+    if (noteTicker && !portfolioTickers.includes(noteTicker)) {
+      setNoteTicker(triggers[0]?.ticker ?? "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [triggers]);
 
   function removeFromPortfolio(triggerId: string) {
     updateTrigger({ id: triggerId, portfolio_id: null });
@@ -836,15 +849,12 @@ function JournalNoteModal({
     if (!content.trim()) return;
     const tags = parseTags(tagInput);
     if (note) {
-      update(
-        { id: note.id, title: title || undefined, content, tags },
-        { onSuccess: onClose }
-      );
+      // Send `title` as-is (even "") so clearing an existing title actually
+      // reaches the server — coalescing to `undefined` here would drop the
+      // key from the request and silently leave the old title in place.
+      update({ id: note.id, title, content, tags }, { onSuccess: onClose });
     } else {
-      create(
-        { title: title || undefined, content, tags },
-        { onSuccess: onClose }
-      );
+      create({ title: title || undefined, content, tags }, { onSuccess: onClose });
     }
   }
 
@@ -1063,6 +1073,8 @@ function StatCard({
 // ─── Watchlist-style card (active / triggered alerts) ────────────────────────
 
 function WatchCard({ trigger }: { trigger: PriceTrigger }) {
+  const rearm = useRearmTrigger();
+  const archive = useDeleteTrigger();
   const conditionWord = trigger.condition === "above" ? "Above" : "Below";
   const firedAt = trigger.last_triggered_at
     ? new Date(trigger.last_triggered_at).toLocaleString("en-US", {
@@ -1119,16 +1131,19 @@ function WatchCard({ trigger }: { trigger: PriceTrigger }) {
       {/* Actions */}
       <div className="flex items-center gap-3 pt-1 border-t border-brand-subtle">
         {!trigger.is_active && (
-          <button className="text-xs font-medium text-brand hover:text-brand-hover transition-colors">
-            Log trade
-          </button>
-        )}
-        {trigger.is_active && (
-          <button className="text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors">
+          <button
+            onClick={() => rearm.mutate(trigger.id)}
+            disabled={rearm.isPending}
+            className="text-xs font-medium text-brand hover:text-brand-hover transition-colors disabled:opacity-50"
+          >
             Re-arm
           </button>
         )}
-        <button className="text-xs text-slate-400 hover:text-slate-600 transition-colors ml-auto">
+        <button
+          onClick={() => archive.mutate(trigger.id)}
+          disabled={archive.isPending}
+          className="text-xs text-slate-400 hover:text-slate-600 transition-colors ml-auto disabled:opacity-50"
+        >
           Archive
         </button>
       </div>
@@ -1355,6 +1370,7 @@ export default function NotebookPage() {
           triggers={triggers.filter((t) => t.portfolio_id === openPortfolio.id)}
           onEdit={() => {
             setPortfolioModal(openPortfolio);
+            setOpenPortfolio(null);
           }}
           onClose={() => setOpenPortfolio(null)}
         />

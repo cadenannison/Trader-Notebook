@@ -39,6 +39,12 @@ function UndoBar() {
     setBusy(true);
     try {
       await frame.undo();
+    } catch (e) {
+      // Undo failed partway through — put the frame back on the undo stack
+      // instead of leaving it stranded on redo, where it would try to redo
+      // something that never actually got undone.
+      useUndoStore.setState((s) => ({ past: [...s.past, frame], future: s.future.slice(1) }));
+      console.error("Undo failed:", e);
     } finally {
       setBusy(false);
     }
@@ -51,6 +57,11 @@ function UndoBar() {
     setBusy(true);
     try {
       await frame.redo();
+    } catch (e) {
+      // Same reasoning in reverse — a failed redo goes back to the redo
+      // stack, not stranded on undo.
+      useUndoStore.setState((s) => ({ past: s.past.slice(0, -1), future: [frame, ...s.future] }));
+      console.error("Redo failed:", e);
     } finally {
       setBusy(false);
     }

@@ -18,6 +18,7 @@ export const MOCK_TRADES: Trade[] = [
       "Breakout above the $840 consolidation zone. AI capex cycle still intact.",
     logged_at: "2026-04-22T10:15:00Z",
     closed_at: "2026-04-30T10:00:00Z",
+    post_trade_notes: null,
   },
   {
     id: "trade-2",
@@ -36,6 +37,7 @@ export const MOCK_TRADES: Trade[] = [
       "Services revenue thesis. Buying dip into earnings. Need to see margin guidance.",
     logged_at: "2026-04-25T14:30:00Z",
     closed_at: null,
+    post_trade_notes: null,
   },
   {
     id: "trade-3",
@@ -54,6 +56,7 @@ export const MOCK_TRADES: Trade[] = [
       "Thesis broke when Musk confirmed more Tesla time needed. Stopped out.",
     logged_at: "2026-04-18T09:45:00Z",
     closed_at: "2026-04-25T09:00:00Z",
+    post_trade_notes: null,
   },
   {
     id: "trade-4",
@@ -72,5 +75,6 @@ export const MOCK_TRADES: Trade[] = [
       "Broad tech exposure as hedge. Sector rotation into tech looks healthy.",
     logged_at: "2026-04-28T11:00:00Z",
     closed_at: null,
+    post_trade_notes: null,
   },
 ];

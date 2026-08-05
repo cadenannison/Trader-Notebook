@@ -64,7 +64,7 @@ export default function TickerPage() {
 
   const watchlistEntry = watchlistEntries[0] ?? null;
 
-  const { data: newsData = [] } = useQuery({
+  const { data: newsData = [], isError: newsError } = useQuery({
     queryKey: ["news", symbol],
     queryFn: async (): Promise<NewsArticle[]> => {
       const res = await api.get("/api/news", { params: { ticker: symbol } });
@@ -401,7 +401,9 @@ export default function TickerPage() {
       {/* Recent news */}
       <Card>
         <SectionTitle>Recent news</SectionTitle>
-        {recentNews.length === 0 ? (
+        {newsError ? (
+          <p className="text-sm text-slate-400">Couldn&apos;t load news right now.</p>
+        ) : recentNews.length === 0 ? (
           <p className="text-sm text-slate-400">No recent news.</p>
         ) : (
           <div className="space-y-3">

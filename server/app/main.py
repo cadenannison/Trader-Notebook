@@ -5,6 +5,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from app.api import (
+    admin,
     auth_lookup,
     briefing,
     chat,
@@ -50,7 +51,13 @@ def _build_cors_origins() -> list[str]:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_cors_origins(),
-    allow_origin_regex=r"https?://localhost(:\d+)?|https://.*\.vercel\.app",
+    # Scoped to this project's own Vercel deployments only (project slug
+    # "trader-notebook" per .vercel/repo.json) — matches production
+    # (trader-notebook.vercel.app) and preview/branch deployments
+    # (trader-notebook-<hash>.vercel.app, trader-notebook-git-<branch>-<team>.vercel.app),
+    # not any arbitrary *.vercel.app origin, since allow_credentials=True
+    # makes an overly broad regex here a credentialed-CORS risk.
+    allow_origin_regex=r"https?://localhost(:\d+)?|https://trader-notebook(-[a-zA-Z0-9]+)*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
@@ -69,6 +76,7 @@ app.include_router(briefing.router, prefix="/api")
 app.include_router(portfolios.router, prefix="/api")
 app.include_router(journal_notes.router, prefix="/api")
 app.include_router(insights.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
 
 
 @app.get("/api/health")

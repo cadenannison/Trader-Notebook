@@ -2,7 +2,11 @@ name: Weekly Digest
 
 on:
   schedule:
-    - cron: "0 21 * * 5"  # Friday 9 PM UTC (5 PM ET)
+    # Fixed UTC cron can't track US DST, so both offsets are scheduled;
+    # weekly_digest.py's _in_send_window() only actually sends from
+    # whichever of these is correct for the current date.
+    - cron: "0 21 * * 5"  # Friday 5 PM EDT (UTC-4)
+    - cron: "0 22 * * 5"  # Friday 5 PM EST (UTC-5)
   workflow_dispatch:
 
 concurrency:

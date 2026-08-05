@@ -136,6 +136,22 @@ def _in_cooldown(trigger: dict, now: datetime) -> bool:
     return (now - last).total_seconds() / 3600 < trigger["cooldown_hours"]
 
 
+def _already_warned_today(trigger: dict, now: datetime) -> bool:
+    """Return True if an earnings_warning trigger already fired on this same
+    calendar day (UTC). _check_earnings_warning's "reports today or tomorrow"
+    window stays true across many worker runs for the same underlying earnings
+    event, so a short cooldown_hours with auto_disarm=false can otherwise send
+    several duplicate emails for one earnings report. This guard is checked in
+    addition to (not instead of) _in_cooldown."""
+    last_str = trigger.get("last_triggered_at")
+    if not last_str:
+        return False
+    last = datetime.fromisoformat(last_str.replace("Z", "+00:00"))
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return last.astimezone(timezone.utc).date() == now.astimezone(timezone.utc).date()
+
+
 # ── Crypto (inlined from server/app/crypto/keys.py) ──────────────────────────
 
 
@@ -258,20 +274,20 @@ def write_trigger_log(sb, trigger: dict, price: float, summary: str) -> None:
         print(f"  [trigger_log] Failed to write log: {exc}")
 
 
-def update_trigger_post_fire(sb, trigger: dict, now: datetime) -> None:
+def update_trigger_post_fire(sb, trigger: dict, now: datetime, price: float) -> None:
+    """Deactivate (auto_disarm) or reset the cooldown (stay-armed) after a fire.
+
+    For pct_move triggers, also rebase reference_price to the current price —
+    otherwise a single move past the threshold would keep re-firing every
+    cooldown window indefinitely, since the % move would keep being measured
+    from the original, now-stale, reference price.
+    """
+    updates = {"last_triggered_at": now.isoformat()}
+    if trigger.get("trigger_type") == "pct_move":
+        updates["reference_price"] = price
     if trigger["auto_disarm"]:
-        sb.table("triggers").update(
-            {
-                "is_active": False,
-                "last_triggered_at": now.isoformat(),
-            }
-        ).eq("id", trigger["id"]).execute()
-    else:
-        sb.table("triggers").update(
-            {
-                "last_triggered_at": now.isoformat(),
-            }
-        ).eq("id", trigger["id"]).execute()
+        updates["is_active"] = False
+    sb.table("triggers").update(updates).eq("id", trigger["id"]).execute()
 
 
 def record_last_run(sb, now: datetime) -> None:
@@ -389,15 +405,18 @@ async def run_insight_agent(
             continue
 
     return (
-        f"{ticker} has {direction} your target of ${trigger['target_price']:.2f} "
-        f"(now ${price:.2f}). Review your notes and current market conditions before acting."
+        f"{ticker} alert: {alert_description}. "
+        f"Review your notes and current market conditions before acting."
     )
 
 
-def send_email(user_email: str | None, ticker: str, summary: str) -> None:
+def send_email(user_email: str | None, ticker: str, summary: str) -> bool:
+    """Send the alert email. Returns True only if it was actually sent —
+    callers must not disarm/cooldown a trigger on a False return, since that
+    would silently lose the alert with no notification ever delivered."""
     if not RESEND_API_KEY or not user_email:
         print("  [email] Skipped — missing Resend key or user email")
-        return
+        return False
     body = (
         f"{summary}\n\n"
         "---\n"
@@ -405,14 +424,19 @@ def send_email(user_email: str | None, ticker: str, summary: str) -> None:
         "It is not financial advice. Verify all information before making any decisions.\n\n"
         "— tradrNotebook"
     )
-    resend.Emails.send(
-        {
-            "from": RESEND_FROM,
-            "to": [user_email],
-            "subject": f"tradrNotebook: {ticker} alert triggered",
-            "text": body,
-        }
-    )
+    try:
+        resend.Emails.send(
+            {
+                "from": RESEND_FROM,
+                "to": [user_email],
+                "subject": f"tradrNotebook: {ticker} alert triggered",
+                "text": body,
+            }
+        )
+        return True
+    except Exception as e:
+        print(f"  [email] Send failed for {user_email}: {e}")
+        return False
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -503,11 +527,15 @@ async def main() -> None:
         )
 
         user_email = get_user_email(sb, trigger["user_id"])
-        send_email(user_email, ticker, summary)
+        emailed = send_email(user_email, ticker, summary)
         write_trigger_log(sb, trigger, price, summary)
-        print(f"  [{ticker}] Email sent to {user_email}")
 
-        update_trigger_post_fire(sb, trigger, now)
+        if not emailed:
+            print(f"  [{ticker}] Email NOT sent — leaving trigger {trigger['id']} active so it retries next run.")
+            continue
+
+        print(f"  [{ticker}] Email sent to {user_email}")
+        update_trigger_post_fire(sb, trigger, now, price)
         status = "deactivated" if trigger["auto_disarm"] else "re-armed (cooldown reset)"
         print(f"  [{ticker}] Trigger {trigger['id']} {status}.")
 
@@ -519,6 +547,10 @@ async def main() -> None:
 
             if _in_cooldown(trigger, now):
                 print(f"  [{ticker}] Earnings trigger {trigger['id']} in cooldown — skipping.")
+                continue
+
+            if _already_warned_today(trigger, now):
+                print(f"  [{ticker}] Earnings trigger {trigger['id']} already warned today — skipping.")
                 continue
 
             print(f"  [{ticker}] EARNINGS WARNING: reports today or tomorrow")
@@ -539,11 +571,15 @@ async def main() -> None:
             )
 
             user_email = get_user_email(sb, trigger["user_id"])
-            send_email(user_email, ticker, summary)
+            emailed = send_email(user_email, ticker, summary)
             write_trigger_log(sb, trigger, price, summary)
-            print(f"  [{ticker}] Earnings warning email sent to {user_email}")
 
-            update_trigger_post_fire(sb, trigger, now)
+            if not emailed:
+                print(f"  [{ticker}] Earnings warning NOT emailed — leaving trigger {trigger['id']} active so it retries next run.")
+                continue
+
+            print(f"  [{ticker}] Earnings warning email sent to {user_email}")
+            update_trigger_post_fire(sb, trigger, now, price)
             status = "deactivated" if trigger["auto_disarm"] else "re-armed"
             print(f"  [{ticker}] Trigger {trigger['id']} {status}.")
 

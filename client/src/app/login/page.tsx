@@ -76,22 +76,27 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
 
-    const { data, error: authErr } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { username: signupUsername.trim() || email.split("@")[0] },
-      },
-    });
+    try {
+      const { data, error: authErr } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { username: signupUsername.trim() || email.split("@")[0] },
+        },
+      });
 
-    if (authErr) {
-      setError(authErr.message);
-    } else if (data.session) {
-      // email confirmation disabled — already logged in, AuthGuard redirects
-    } else {
-      setSignupDone(true);
+      if (authErr) {
+        setError(authErr.message);
+      } else if (data.session) {
+        // email confirmation disabled — already logged in, AuthGuard redirects
+      } else {
+        setSignupDone(true);
+      }
+    } catch {
+      setError("Sign up failed. Try again.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   // ── Google OAuth ───────────────────────────────────────────────────────────
@@ -116,15 +121,20 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error: authErr } = await supabase.auth.resetPasswordForEmail(
-      email,
-      {
-        redirectTo: `${window.location.origin}/login`,
-      }
-    );
-    if (authErr) setError(authErr.message);
-    else setResetSent(true);
-    setLoading(false);
+    try {
+      const { error: authErr } = await supabase.auth.resetPasswordForEmail(
+        email,
+        {
+          redirectTo: `${window.location.origin}/login`,
+        }
+      );
+      if (authErr) setError(authErr.message);
+      else setResetSent(true);
+    } catch {
+      setError("Failed to send reset link. Try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   // ── UI ─────────────────────────────────────────────────────────────────────

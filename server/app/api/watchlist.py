@@ -133,6 +133,40 @@ async def update_watchlist_entry(
 
     sb = _get_sb()
     if sb:
+        # "active_trade" and "completed" are trade-driven states — normally set
+        # by create_trade/close_trade based on real trade data. Letting a client
+        # set them directly here (with no backing trade) desyncs the watchlist
+        # entry from actual trade state. "watching"/"expired" stay unrestricted —
+        # those are legitimately user-settable directly.
+        if updates.get("status") == "active_trade":
+            open_trade = (
+                sb.table("trades")
+                .select("id")
+                .eq("watchlist_entry_id", entry_id)
+                .eq("user_id", user_id)
+                .eq("status", "open")
+                .execute()
+            )
+            if not open_trade.data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot set status to active_trade without a backing open trade",
+                )
+        elif updates.get("status") == "completed":
+            closed_trade = (
+                sb.table("trades")
+                .select("id")
+                .eq("watchlist_entry_id", entry_id)
+                .eq("user_id", user_id)
+                .eq("status", "closed")
+                .execute()
+            )
+            if not closed_trade.data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot set status to completed without a backing closed trade",
+                )
+
         result = (
             sb.table("watchlist_entries")
             .update(updates)
@@ -146,6 +180,35 @@ async def update_watchlist_entry(
 
     for entry in _mock_watchlist:
         if entry["id"] == entry_id and entry["user_id"] == user_id:
+            if updates.get("status") == "active_trade":
+                from app.api.trades import _mock_trades
+
+                has_open_trade = any(
+                    t["watchlist_entry_id"] == entry_id
+                    and t["user_id"] == user_id
+                    and t["status"] == "open"
+                    for t in _mock_trades
+                )
+                if not has_open_trade:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Cannot set status to active_trade without a backing open trade",
+                    )
+            elif updates.get("status") == "completed":
+                from app.api.trades import _mock_trades
+
+                has_closed_trade = any(
+                    t["watchlist_entry_id"] == entry_id
+                    and t["user_id"] == user_id
+                    and t["status"] == "closed"
+                    for t in _mock_trades
+                )
+                if not has_closed_trade:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Cannot set status to completed without a backing closed trade",
+                    )
+
             entry.update(updates)
             entry["updated_at"] = datetime.now(timezone.utc).isoformat()
             return entry

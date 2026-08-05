@@ -142,3 +142,38 @@ async def test_call_gemini_with_tools_dedupes_repeated_tool_calls(monkeypatch):
     assert call_count == 1
     assert len(tools_used) == 6
     assert all(t.summary == "$145.35" for t in tools_used)
+
+
+# ── Regression: /api/chat and /api/chat/stream must be rate limited ──────────
+#
+# Chat is the most expensive endpoint (external LLM calls, up to several
+# rounds, cascading DB mutations) but previously had no @limiter.limit(...)
+# decorator at all, unlike every other externally-callable route in this
+# codebase (see stock.py, auth_lookup.py).
+
+
+def test_chat_endpoint_is_rate_limited(client, monkeypatch):
+    # No gemini_api_key configured -> _fallback_response path, no network calls.
+    monkeypatch.setattr(chat_module.settings, "gemini_api_key", "")
+    chat_module.limiter.reset()
+    try:
+        for _ in range(20):
+            resp = client.post("/api/chat", json={"message": "hello", "history": []})
+            assert resp.status_code == 200
+        resp = client.post("/api/chat", json={"message": "hello", "history": []})
+        assert resp.status_code == 429
+    finally:
+        chat_module.limiter.reset()
+
+
+def test_chat_stream_endpoint_is_rate_limited(client, monkeypatch):
+    monkeypatch.setattr(chat_module.settings, "gemini_api_key", "")
+    chat_module.limiter.reset()
+    try:
+        for _ in range(20):
+            resp = client.post("/api/chat/stream", json={"message": "hello", "history": []})
+            assert resp.status_code == 200
+        resp = client.post("/api/chat/stream", json={"message": "hello", "history": []})
+        assert resp.status_code == 429
+    finally:
+        chat_module.limiter.reset()

@@ -163,7 +163,6 @@ export default function ChatPage() {
   const { mutateAsync: closeTrade } = useCloseTrade();
   const { mutateAsync: createPortfolio } = useCreatePortfolio();
   const { mutate: updateTrigger } = useUpdateTrigger();
-  const { mutate: deleteTriggerMutation } = useDeleteTrigger();
   const { mutateAsync: deleteTriggerAsync } = useDeleteTrigger();
   const { data: triggers = [] } = useTriggers();
   const { data: portfolios = [] } = usePortfolios();
@@ -251,7 +250,12 @@ export default function ChatPage() {
       const upper = ticker.toUpperCase();
       const candidates = openTrades.filter((t) => t.ticker === upper);
       if (entryPrice != null) {
-        return candidates.find((t) => t.entry_price === entryPrice) ?? candidates[0] ?? null;
+        // An entry_price was given specifically to disambiguate multiple open
+        // positions on this ticker — if none match, fail closed rather than
+        // silently acting on the wrong lot (e.g. a slightly-off float from the AI).
+        return candidates.length > 1
+          ? candidates.find((t) => t.entry_price === entryPrice) ?? null
+          : candidates[0] ?? null;
       }
       return candidates[0] ?? null;
     };
@@ -276,6 +280,24 @@ export default function ChatPage() {
         if (byTitle.length) candidates = byTitle;
       }
       return candidates.length === 1 ? candidates[0] : null;
+    };
+
+    // Resolves a watchlist entry by ticker. When multiple entries share a
+    // ticker (e.g. an old completed idea and a newer one re-added later),
+    // prefer "live" entries (watching / active_trade) over historical ones
+    // (completed / expired) — that's almost always what "update/delete my X
+    // watchlist entry" means. Falls back to newest-first (the array's
+    // existing server order) as the final tiebreaker. Unlike resolveOpenTrade,
+    // there's no explicit disambiguator field the AI could supply here, so we
+    // don't fail closed on remaining ambiguity — that would regress the
+    // common single-match case.
+    const resolveWatchlistEntry = (ticker: string) => {
+      const upper = ticker.toUpperCase();
+      const candidates = watchlistEntries.filter((e) => e.ticker === upper);
+      const live = candidates.filter(
+        (e) => e.status === "watching" || e.status === "active_trade"
+      );
+      return (live.length ? live : candidates)[0] ?? null;
     };
 
     const ensureMsg = () => {
@@ -531,9 +553,7 @@ export default function ChatPage() {
             markCreated();
           }
         } else if (act.type === "update_watchlist_entry" && act.ticker) {
-          const target = watchlistEntries.find(
-            (e) => e.ticker === act.ticker!.toUpperCase()
-          );
+          const target = resolveWatchlistEntry(act.ticker);
           if (target) {
             const updates: Record<string, unknown> = {};
             if (act.reasoning != null) updates.reasoning = act.reasoning;
@@ -547,9 +567,7 @@ export default function ChatPage() {
             }
           }
         } else if (act.type === "delete_watchlist_entry" && act.ticker) {
-          const target = watchlistEntries.find(
-            (e) => e.ticker === act.ticker!.toUpperCase()
-          );
+          const target = resolveWatchlistEntry(act.ticker);
           if (target) {
             const snapEntry = { ...target };
             await deleteWatchlistEntry(target.id);
@@ -572,18 +590,25 @@ export default function ChatPage() {
             });
             markCreated();
           }
-        } else if (act.type === "update_journal_note") {
+        } else if (
+          act.type === "update_journal_note" &&
+          (act.tags?.length || act.title)
+        ) {
           const target = resolveJournalNote(act.tags, act.title);
           if (target) {
             const updates: Record<string, unknown> = {};
             if (act.content != null) updates.content = act.content;
             if (act.tags != null) updates.tags = act.tags;
+            if (act.new_title != null) updates.title = act.new_title;
             if (Object.keys(updates).length) {
               updateJournalNote({ id: target.id, ...updates });
               markCreated();
             }
           }
-        } else if (act.type === "delete_journal_note") {
+        } else if (
+          act.type === "delete_journal_note" &&
+          (act.tags?.length || act.title)
+        ) {
           const target = resolveJournalNote(act.tags, act.title);
           if (target) {
             const snapNote = { ...target };
@@ -617,12 +642,39 @@ export default function ChatPage() {
         } else if (act.type === "delete_portfolio" && act.portfolio_name) {
           const portfolioId = resolvePortfolioId(act.portfolio_name);
           if (portfolioId) {
+            const snapPortfolio = portfolios.find((p) => p.id === portfolioId);
+            const linkedTriggerIds = triggers
+              .filter((t) => t.portfolio_id === portfolioId)
+              .map((t) => t.id);
             await deletePortfolio(portfolioId);
+            const portfolioIds = { current: portfolioId };
+            pushUndo({
+              label: `Portfolio deleted${snapPortfolio?.name ? `: ${snapPortfolio.name}` : ""}`,
+              undo: async () => {
+                const p = await createPortfolio({
+                  name: snapPortfolio?.name ?? act.portfolio_name!,
+                  thesis: snapPortfolio?.thesis ?? undefined,
+                });
+                portfolioIds.current = p.id;
+                for (const id of linkedTriggerIds) {
+                  updateTrigger({ id, portfolio_id: p.id });
+                }
+              },
+              redo: async () => {
+                for (const id of linkedTriggerIds) {
+                  updateTrigger({ id, portfolio_id: null });
+                }
+                await deletePortfolio(portfolioIds.current);
+              },
+            });
             markCreated();
           }
         } else if (act.type === "rearm_alert" && act.ticker) {
           const upperTicker = act.ticker.toUpperCase();
-          const candidates = triggers.filter((t) => t.ticker === upperTicker);
+          // Only fired/disarmed triggers need re-arming — an already-active one
+          // is a no-op, and matching against it would silently skip the one the
+          // user actually meant when a ticker has both an active and a fired alert.
+          const candidates = triggers.filter((t) => t.ticker === upperTicker && !t.is_active);
           const target = act.price != null
             ? (candidates.find((t) => t.target_price === act.price) ?? candidates[0])
             : candidates[0];
@@ -633,10 +685,12 @@ export default function ChatPage() {
         } else if (act.type === "create_portfolio" && act.name) {
           const portfolio = await createPortfolio({ name: act.name, thesis: act.thesis });
           newPortfolioIds[act.name.toLowerCase()] = portfolio.id;
+          const assignedTriggerIds: string[] = [];
           if (act.tickers?.length) {
             for (const ticker of act.tickers) {
               for (const t of triggers.filter((t) => t.ticker === ticker.toUpperCase())) {
                 updateTrigger({ id: t.id, portfolio_id: portfolio.id });
+                assignedTriggerIds.push(t.id);
               }
             }
           }
@@ -644,10 +698,16 @@ export default function ChatPage() {
           const portfolioIds = { current: portfolio.id };
           pushUndo({
             label: `Portfolio created: ${act.name}`,
-            undo: async () => { await deletePortfolio(portfolioIds.current); },
+            undo: async () => {
+              // Clear the assignment before deleting so these triggers don't end
+              // up pointing at a deleted portfolio_id.
+              for (const id of assignedTriggerIds) updateTrigger({ id, portfolio_id: null });
+              await deletePortfolio(portfolioIds.current);
+            },
             redo: async () => {
               const p = await createPortfolio({ name: snapAct.name!, thesis: snapAct.thesis });
               portfolioIds.current = p.id;
+              for (const id of assignedTriggerIds) updateTrigger({ id, portfolio_id: p.id });
             },
           });
           markCreated();
@@ -714,10 +774,42 @@ export default function ChatPage() {
                     (!act.condition || t.condition === act.condition)
                 )
               : triggers.filter((t) => t.ticker === upperTicker);
-          for (const t of toDelete) {
-            deleteTriggerMutation(t.id);
+          if (toDelete.length) {
+            const snapshots = toDelete.map((t) => ({ ...t }));
+            for (const t of toDelete) {
+              await deleteTriggerAsync(t.id);
+            }
+            const currentIds = { current: snapshots.map((s) => s.id) };
+            pushUndo({
+              label:
+                snapshots.length > 1
+                  ? `${snapshots.length} alerts deleted: ${act.ticker}`
+                  : `Alert deleted: ${act.ticker}`,
+              undo: async () => {
+                const recreated = await Promise.all(
+                  snapshots.map((s) =>
+                    createTrigger({
+                      ticker: s.ticker,
+                      target_price: s.target_price,
+                      condition: s.condition,
+                      trigger_type: s.trigger_type,
+                      threshold_pct: s.threshold_pct,
+                      reference_price: s.reference_price,
+                      auto_disarm: s.auto_disarm,
+                      cooldown_hours: s.cooldown_hours,
+                      notes: s.notes,
+                      portfolio_id: s.portfolio_id,
+                    })
+                  )
+                );
+                currentIds.current = recreated.map((t) => t.id);
+              },
+              redo: async () => {
+                for (const id of currentIds.current) await deleteTriggerAsync(id);
+              },
+            });
+            markCreated();
           }
-          if (toDelete.length) markCreated();
         }
       } catch {
         // individual action failure is silent — user can fix manually

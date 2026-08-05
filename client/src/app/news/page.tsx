@@ -111,19 +111,13 @@ function SetupState() {
       </div>
       <div className="space-y-1">
         <h2 className="text-base font-semibold text-slate-900">
-          Add your Finnhub API key
+          News isn&apos;t available right now
         </h2>
         <p className="text-sm text-slate-500 max-w-xs">
-          Market news requires a Finnhub API key. Get a free key at{" "}
-          <span className="text-brand font-medium">finnhub.io</span> and add it
-          in{" "}
-          <a
-            href="/settings"
-            className="text-brand underline underline-offset-2"
-          >
-            Settings
-          </a>
-          .
+          This requires a Finnhub API key to be configured on the server. If
+          you&apos;re self-hosting, set{" "}
+          <span className="text-brand font-medium">FINNHUB_API_KEY</span> in
+          your deployment environment.
         </p>
       </div>
     </div>
