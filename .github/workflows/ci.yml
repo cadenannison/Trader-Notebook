@@ -11,11 +11,15 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   # ── Secret scanning ───────────────────────────────────────────────────────
   secrets:
     name: Secret scan
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,6 +34,7 @@ jobs:
   server:
     name: Server
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: server
@@ -72,6 +77,7 @@ jobs:
   worker:
     name: Worker
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -93,6 +99,15 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest
 
+      - name: Install audit tools
+        run: pip install bandit pip-audit
+
+      - name: Security scan (bandit)
+        run: bandit -r worker/ -ll -q --exclude worker/tests
+
+      - name: Dependency audit
+        run: pip-audit -r worker/requirements.txt
+
       - name: Test
         run: pytest worker/tests/ -v --tb=short
         env:
@@ -102,6 +117,7 @@ jobs:
   client:
     name: Client
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: client
@@ -126,4 +142,3 @@ jobs:
 
       - name: Dependency audit
         run: npm audit --audit-level=critical
-        continue-on-error: true

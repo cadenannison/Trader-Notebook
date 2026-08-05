@@ -17,12 +17,22 @@ on:
           - client
           - both
 
+# Prevent overlapping production deploys (e.g. a workflow_run trigger racing
+# a manual workflow_dispatch) from hitting Render/Vercel concurrently.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
   # Only deploy when CI passed — never on failure. Manual dispatch skips this
   # requirement since triggering it by hand already implies intent.
   check:
     name: Check CI result
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     steps:
       - run: echo "Proceeding to deploy"
@@ -31,6 +41,8 @@ jobs:
   deploy-server:
     name: Deploy server (Render)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
     needs: check
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.target == 'server' || github.event.inputs.target == 'both' }}
     steps:
@@ -49,6 +61,8 @@ jobs:
   deploy-client:
     name: Deploy client (Vercel)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
     needs: check
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.target == 'client' || github.event.inputs.target == 'both' }}
     steps:
