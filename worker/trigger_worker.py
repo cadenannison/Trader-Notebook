@@ -16,7 +16,7 @@ import resend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from supabase import create_client
+from supabase import ClientOptions, create_client
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -454,7 +454,15 @@ async def main() -> None:
         print("Market is closed — exiting.")
         return
 
-    sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    # supabase-py defaults to a 120s per-request timeout, and this script makes
+    # several serial Supabase calls per trigger — one slow/degraded response can
+    # balloon the run past the workflow's job timeout. Bound it like every other
+    # HTTP call in this file (Polygon/Finnhub/Gemini all use 8-20s).
+    sb = create_client(
+        SUPABASE_URL,
+        SUPABASE_SERVICE_KEY,
+        options=ClientOptions(postgrest_client_timeout=15),
+    )
 
     if check_kill_switch(sb):
         print("Maintenance mode active — exiting.")
