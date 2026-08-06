@@ -250,8 +250,8 @@ function AlertModal({
             >
               <span
                 className={clsx(
-                  "absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
-                  autoDisarm ? "translate-x-5" : "translate-x-0.5"
+                  "absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
+                  autoDisarm ? "translate-x-5" : "translate-x-0"
                 )}
               />
             </button>
