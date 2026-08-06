@@ -98,21 +98,24 @@ async def create_journal_note(
     if sb:
         key = derive_key(settings.master_key, user_id)
         encrypted = encrypt(body.content, key)
-        row = (
-            sb.table("journal_notes")
-            .insert(
-                {
-                    "user_id": user_id,
-                    "title": body.title or None,
-                    "encrypted_content": encrypted.hex(),
-                    "tags": tags,
-                    "created_at": now,
-                    "updated_at": now,
-                }
+        try:
+            row = (
+                sb.table("journal_notes")
+                .insert(
+                    {
+                        "user_id": user_id,
+                        "title": body.title or None,
+                        "encrypted_content": encrypted.hex(),
+                        "tags": tags,
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+                )
+                .execute()
+                .data[0]
             )
-            .execute()
-            .data[0]
-        )
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Failed to save note: {exc}")
         return _decrypt_row(row, key)
 
     note = {

@@ -2,12 +2,15 @@
 
 import React, { useEffect, useRef } from "react";
 
+import axios from "axios";
 import { clsx } from "clsx";
 import {
+  AlertTriangle,
   BarChart2,
   Bell,
   Check,
   Calculator,
+  Clock,
   Eye,
   FileText,
   History,
@@ -811,8 +814,17 @@ export default function ChatPage() {
             markCreated();
           }
         }
-      } catch {
-        // individual action failure is silent — user can fix manually
+      } catch (err) {
+        const reason = axios.isAxiosError(err)
+          ? (err.response?.data as { detail?: string } | undefined)?.detail ?? err.message
+          : err instanceof Error
+          ? err.message
+          : "Unknown error";
+        console.error(`Chat action "${act.type}" failed:`, err);
+        const cur = useAppStoreRaw.getState().chatMessages.find((m) => m.id === aiId);
+        const failed = [...(cur?.actionsFailed ?? finalActionList.map(() => null))];
+        failed[i] = reason;
+        updateChatMessage(aiId, { actionsFailed: failed });
       }
     }
   }
@@ -945,9 +957,12 @@ export default function ChatPage() {
                       (act, i) => {
                         const created =
                           msg.actionsCreated?.[i] ?? msg.actionCreated ?? false;
+                        const failedReason = msg.actionsFailed?.[i];
                         const badgeClass = clsx(
                           "inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1",
-                          created
+                          failedReason
+                            ? "bg-red-50 text-red-600 border border-red-200"
+                            : created
                             ? "bg-brand-light text-brand border border-brand-border"
                             : "bg-slate-100 text-slate-500 border border-slate-200"
                         );
@@ -994,9 +1009,18 @@ export default function ChatPage() {
                         if (!label) return null;
                         return (
                           <div key={i} className="px-4 pb-3">
-                            <span className={badgeClass}>
-                              <Check size={11} />
-                              {label}
+                            <span
+                              className={badgeClass}
+                              title={failedReason ? `Failed: ${failedReason}` : undefined}
+                            >
+                              {failedReason ? (
+                                <AlertTriangle size={11} />
+                              ) : created ? (
+                                <Check size={11} />
+                              ) : (
+                                <Clock size={11} />
+                              )}
+                              {failedReason ? `${label} — failed` : label}
                             </span>
                           </div>
                         );

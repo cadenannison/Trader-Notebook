@@ -91,6 +91,7 @@ export interface ChatMessage {
   actions?: ChatAction[]; // multi-action array
   actionsCreated?: boolean[]; // per-action success flags
   actionCreated?: boolean; // legacy compat
+  actionsFailed?: (string | null)[]; // per-action error message, if it failed
   toolsUsed?: ToolUsed[];
   isStreaming?: boolean;
 }
