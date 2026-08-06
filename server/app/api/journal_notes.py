@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.config import settings
-from app.crypto.keys import decrypt, derive_key, encrypt
+from app.crypto.keys import MasterKeyError, decrypt, derive_key, encrypt
 from app.middleware.auth import get_current_user
 
 router = APIRouter()
@@ -74,7 +74,10 @@ async def get_journal_notes(
         if tag_list:
             q = q.contains("tags", tag_list)
         rows = q.execute().data
-        key = derive_key(settings.master_key, user_id)
+        try:
+            key = derive_key(settings.master_key, user_id)
+        except MasterKeyError as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
         return [_decrypt_row(r, key) for r in rows]
 
     notes = [n for n in _mock_journal_notes if n["user_id"] == user_id]
@@ -96,7 +99,10 @@ async def create_journal_note(
 
     sb = _get_sb()
     if sb:
-        key = derive_key(settings.master_key, user_id)
+        try:
+            key = derive_key(settings.master_key, user_id)
+        except MasterKeyError as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
         encrypted = encrypt(body.content, key)
         try:
             row = (

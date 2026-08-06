@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -21,6 +23,18 @@ from app.api import (
     watchlist,
 )
 from app.config import settings
+from app.crypto.keys import master_key_is_valid
+
+_logger = logging.getLogger(__name__)
+
+# A malformed MASTER_KEY doesn't fail until the first note read/write, where it
+# surfaces as an opaque 500 ("error fetching notes" in chat). Surface it loudly
+# at boot instead — this is the single most likely deploy misconfiguration.
+if settings.supabase_url and not master_key_is_valid(settings.master_key):
+    _logger.error(
+        "MASTER_KEY is not a 64-character hex string — all journal note reads and "
+        "writes will fail. Set it with `openssl rand -hex 32`."
+    )
 
 # Sentry — init before any request handling
 if settings.sentry_dsn:

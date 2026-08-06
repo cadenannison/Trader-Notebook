@@ -19,8 +19,13 @@ services:
         sync: false
       - key: SUPABASE_JWT_SECRET
         sync: false
+      # Must be a 64-char hex string (`openssl rand -hex 32`), set manually in
+      # the Render dashboard. NOT generateValue: Render generates a random
+      # non-hex secret, which fails bytes.fromhex() and breaks every note
+      # read/write. Changing this value also makes existing notes permanently
+      # undecryptable, so it must be set once and backed up.
       - key: MASTER_KEY
-        generateValue: true
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
       - key: POLYGON_API_KEY
