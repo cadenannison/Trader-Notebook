@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 from typing import AsyncGenerator, Optional
 
@@ -16,6 +17,8 @@ from app.skills.news import fetch_news_for_ticker
 from app.skills.analysts import fetch_analyst_ratings
 from app.api.insights import get_insights as _get_insights_impl
 from app.api.briefing import get_briefing as _get_briefing_impl
+
+_logger = logging.getLogger(__name__)
 
 _MAX_MSG_LEN = 1500
 
@@ -1084,7 +1087,10 @@ async def _call_gemini_with_tools(
 
         for fc in function_calls:
             args = fc.get("args", {})
-            cache_key = (fc["name"], tuple(sorted(args.items())))
+            # args values aren't guaranteed to be hashable (e.g. the model can pass
+            # a list for an array-typed field), so key on their JSON form instead
+            # of a raw tuple of items.
+            cache_key = (fc["name"], json.dumps(args, sort_keys=True, default=str))
             if cache_key in tool_cache:
                 result, tool_summary = tool_cache[cache_key]
             else:
@@ -1155,6 +1161,7 @@ async def chat(body: ChatRequest, request: Request, user_id: str = Depends(get_c
             )
         raise HTTPException(status_code=502, detail="AI service error")
     except Exception:
+        _logger.exception("chat failed for user %s", user_id)
         raise HTTPException(status_code=502, detail="AI service error")
 
 
@@ -1226,7 +1233,10 @@ async def _stream_gemini_with_tools(
             ticker_arg = args.get("ticker")
             yield {"type": "tool_start", "name": fc["name"], "ticker": ticker_arg}
 
-            cache_key = (fc["name"], tuple(sorted(args.items())))
+            # args values aren't guaranteed to be hashable (e.g. the model can pass
+            # a list for an array-typed field), so key on their JSON form instead
+            # of a raw tuple of items.
+            cache_key = (fc["name"], json.dumps(args, sort_keys=True, default=str))
             if cache_key in tool_cache:
                 result, tool_summary = tool_cache[cache_key]
             else:
@@ -1282,6 +1292,7 @@ async def chat_stream(body: ChatRequest, request: Request, user_id: str = Depend
             async for event in _stream_gemini_with_tools(system, history, body.message, user_id):
                 yield f"data: {json.dumps(event)}\n\n"
         except Exception:
+            _logger.exception("chat_stream failed for user %s", user_id)
             yield f"data: {json.dumps({'type': 'error', 'message': 'Something went wrong — please try again.'})}\n\n"
 
     return StreamingResponse(
