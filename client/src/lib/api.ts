@@ -100,7 +100,10 @@ function stopConnectionCheck() {
 }
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (warmingTimer) stopConnectionCheck();
+    return response;
+  },
   (error) => {
     // Only trigger for genuine connectivity failures, not HTTP errors (4xx/5xx
     // have a response object) and not auth rejections.
