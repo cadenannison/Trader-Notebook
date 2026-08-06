@@ -8,6 +8,7 @@ Checks active price triggers and fires the insight agent + Resend email when a t
 
 import asyncio
 import os
+import re
 from datetime import datetime, time, timedelta, timezone
 
 import httpx
@@ -155,7 +156,22 @@ def _already_warned_today(trigger: dict, now: datetime) -> bool:
 # ── Crypto (inlined from server/app/crypto/keys.py) ──────────────────────────
 
 
+_HEX_64 = re.compile(r"\A[0-9a-fA-F]{64}\Z")
+
+
+def master_key_is_valid(master_key_hex: str) -> bool:
+    return bool(master_key_hex) and bool(_HEX_64.fullmatch(master_key_hex))
+
+
 def derive_key(master_key_hex: str, user_id: str) -> bytes:
+    # A non-hex key (e.g. a randomly generated secret) would otherwise fail deep
+    # inside bytes.fromhex, where get_user_notes swallows it and silently drops
+    # note context from alerts. Fail with something identifiable instead.
+    if not master_key_is_valid(master_key_hex):
+        raise ValueError(
+            "MASTER_KEY must be a 64-character hex string (32 bytes) — "
+            "generate one with `openssl rand -hex 32`."
+        )
     master_key = bytes.fromhex(master_key_hex)
     hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=user_id.encode())
     return hkdf.derive(master_key)
@@ -448,6 +464,16 @@ async def main() -> None:
         return
     if not MASTER_KEY:
         print("MASTER_KEY is required for note decryption — exiting.")
+        return
+    # Checking presence alone isn't enough: a malformed key still passes, then
+    # fails per-note inside get_user_notes, which returns [] on error. Alerts
+    # would keep sending with no note context and nothing obvious in the logs.
+    if not master_key_is_valid(MASTER_KEY):
+        print(
+            "MASTER_KEY is not a 64-character hex string — note decryption would "
+            "fail silently. Generate one with `openssl rand -hex 32` and update the "
+            "MASTER_KEY secret. Exiting."
+        )
         return
 
     if not is_market_open():
