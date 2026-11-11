@@ -1027,23 +1027,47 @@ async def _execute_tool(name: str, args: dict, user_id: str) -> tuple[dict, Tool
     return {"error": f"Unknown tool: {name}"}, ToolUsed(name=name, summary="unknown tool")
 
 
+_RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
+
+
 async def _call_gemini_raw(body: dict) -> dict:
-    """Single Gemini API call, tries models in order. Returns raw response JSON."""
+    """Single Gemini API call, tries models in order. Returns raw response JSON.
+
+    Rate limits (429) and transient server errors (5xx, e.g. 503 "high demand")
+    are retried briefly on the same model, then we fall through to the next
+    model. Timeouts/connection errors skip straight to the next model. Other
+    4xx errors (bad key, bad request) are not transient and raise immediately.
+    """
     import asyncio
 
+    last_exc: Exception | None = None
     async with httpx.AsyncClient(timeout=25.0) as client:
         for model in _MODELS:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
             for attempt in range(3):
-                r = await client.post(
-                    url, json=body, headers={"x-goog-api-key": settings.gemini_api_key}
-                )
-                if r.status_code == 429:
-                    await asyncio.sleep(2**attempt)
+                try:
+                    r = await client.post(
+                        url, json=body, headers={"x-goog-api-key": settings.gemini_api_key}
+                    )
+                except httpx.TransportError as exc:  # timeout / connection failure
+                    last_exc = exc
+                    _logger.warning("Gemini %s transport error: %r", model, exc)
+                    break
+                if r.status_code in _RETRYABLE_STATUSES:
+                    last_exc = httpx.HTTPStatusError(
+                        f"Gemini {model} returned {r.status_code}",
+                        request=r.request,
+                        response=r,
+                    )
+                    _logger.warning(
+                        "Gemini %s returned %s (attempt %d)", model, r.status_code, attempt + 1
+                    )
+                    if attempt < 2:
+                        await asyncio.sleep(2**attempt)
                     continue
                 r.raise_for_status()
                 return r.json()
-    raise httpx.HTTPStatusError("All models rate-limited", request=r.request, response=r)
+    raise last_exc or RuntimeError("No Gemini models configured")
 
 
 async def _call_gemini_with_tools(

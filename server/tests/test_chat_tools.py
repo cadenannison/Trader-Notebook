@@ -177,3 +177,76 @@ def test_chat_stream_endpoint_is_rate_limited(client, monkeypatch):
         assert resp.status_code == 429
     finally:
         chat_module.limiter.reset()
+
+
+# ── Regression: Gemini 5xx/timeouts must fall back, not surface as an error ──
+
+
+def _stub_gemini(monkeypatch, responses_by_model):
+    """Patch httpx.AsyncClient so each model's URL yields a queued response/exception."""
+    import httpx
+
+    calls = []
+
+    class FakeClient:
+        def __init__(self, *a, **kw):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, json=None, headers=None):
+            model = url.split("/models/")[1].split(":")[0]
+            calls.append(model)
+            item = responses_by_model[model].pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return httpx.Response(item[0], json=item[1], request=httpx.Request("POST", url))
+
+    async def no_sleep(_):
+        return None
+
+    monkeypatch.setattr(chat_module.httpx, "AsyncClient", FakeClient)
+    monkeypatch.setattr("asyncio.sleep", no_sleep)
+    monkeypatch.setattr(chat_module, "_MODELS", ["primary", "lite"])
+    return calls
+
+
+@pytest.mark.asyncio
+async def test_gemini_503_falls_back_to_lite_model(monkeypatch):
+    ok = {"candidates": [{"content": {"parts": [{"text": "hi"}]}}]}
+    calls = _stub_gemini(monkeypatch, {"primary": [(503, {})] * 3, "lite": [(200, ok)]})
+    assert await chat_module._call_gemini_raw({}) == ok
+    assert calls == ["primary", "primary", "primary", "lite"]
+
+
+@pytest.mark.asyncio
+async def test_gemini_timeout_falls_back_to_lite_model(monkeypatch):
+    import httpx
+
+    ok = {"candidates": []}
+    calls = _stub_gemini(monkeypatch, {"primary": [httpx.ReadTimeout("slow")], "lite": [(200, ok)]})
+    assert await chat_module._call_gemini_raw({}) == ok
+    assert calls == ["primary", "lite"]
+
+
+@pytest.mark.asyncio
+async def test_gemini_client_error_is_not_retried(monkeypatch):
+    import httpx
+
+    calls = _stub_gemini(monkeypatch, {"primary": [(400, {})], "lite": []})
+    with pytest.raises(httpx.HTTPStatusError):
+        await chat_module._call_gemini_raw({})
+    assert calls == ["primary"]
+
+
+@pytest.mark.asyncio
+async def test_gemini_all_models_down_raises(monkeypatch):
+    import httpx
+
+    _stub_gemini(monkeypatch, {"primary": [(503, {})] * 3, "lite": [(503, {})] * 3})
+    with pytest.raises(httpx.HTTPStatusError):
+        await chat_module._call_gemini_raw({})
